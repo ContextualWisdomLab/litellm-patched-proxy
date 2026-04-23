@@ -1,0 +1,139 @@
+name: Trivy Issue On Findings
+
+on:
+  workflow_run:
+    workflows: ["PR Validate"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  create-or-update-issue:
+    if: github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve run metadata
+        id: prep
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const pr = run.pull_requests && run.pull_requests.length > 0 ? run.pull_requests[0] : null;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const artifact = artifacts.find(a => a.name === 'pr-trivy-results');
+            if (!artifact) {
+              core.setFailed('Trivy JSON artifact not found for triggering run');
+              return;
+            }
+            core.setOutput('artifact_id', String(artifact.id));
+            core.setOutput('run_id', String(run.id));
+            core.setOutput('head_sha', run.head_sha);
+            core.setOutput('head_branch', run.head_branch);
+            core.setOutput('pr_number', pr ? String(pr.number) : '');
+            core.setOutput('dedupe_key', pr ? `pr-${pr.number}` : `branch-${run.head_branch}`);
+            core.setOutput('issue_title', pr ? `[Trivy] Remediate HIGH/CRITICAL vulnerabilities for PR #${pr.number}` : `[Trivy] Remediate HIGH/CRITICAL vulnerabilities on ${run.head_branch}`);
+
+      - name: Download Trivy artifact
+        run: |
+          mkdir -p artifacts
+          curl -L \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/${{ steps.prep.outputs.artifact_id }}/zip" \
+            -o artifact.zip
+          unzip -o artifact.zip -d artifacts
+
+      - name: Build remediation summary
+        id: summary
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from collections import Counter
+          from pathlib import Path
+
+          data = json.loads(Path('artifacts/trivy-results.json').read_text())
+          grouped = Counter()
+          for result in data.get('Results', []):
+            target = result.get('Target') or result.get('Type') or 'unknown'
+            for vuln in result.get('Vulnerabilities') or []:
+              sev = vuln.get('Severity')
+              if sev not in {'CRITICAL', 'HIGH'}:
+                continue
+              grouped[(sev, vuln.get('PkgName'), vuln.get('InstalledVersion'), vuln.get('VulnerabilityID'), target)] += 1
+
+          critical = sum(count for (sev, *_), count in grouped.items() if sev == 'CRITICAL')
+          high = sum(count for (sev, *_), count in grouped.items() if sev == 'HIGH')
+          has_findings = critical + high > 0
+          Path(os.environ['GITHUB_OUTPUT']).open('a').write(f"has_findings={'true' if has_findings else 'false'}\n")
+
+          marker = f"<!-- trivy-issue-key: {os.environ['DEDUPE_KEY']} -->"
+          lines = [marker, '', '## Summary', 'Trivy detected HIGH/CRITICAL vulnerabilities that are currently blocking CI.', '']
+          lines.append(f"- Scope: PR #{os.environ['PR_NUMBER']}" if os.environ.get('PR_NUMBER') else f"- Branch: {os.environ['HEAD_BRANCH']}")
+          lines.append(f"- Commit: {os.environ['HEAD_SHA']}")
+          lines.append(f"- Workflow run: https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}")
+          lines.extend(['', '## Findings', f'- Critical: {critical}', f'- High: {high}', '', '| Severity | Package | Installed | Vulnerability | Target | Count |', '| --- | --- | --- | --- | --- | ---: |'])
+          for (sev, pkg, installed, vuln_id, target), count in sorted(grouped.items()):
+            lines.append(f"| {sev} | {pkg} | {installed} | {vuln_id} | {target} | {count} |")
+          lines.extend([
+            '',
+            '## Expected remediation',
+            'Please prepare a pull request that:',
+            '1. upgrades or replaces vulnerable dependencies to fixed versions where available',
+            '2. preserves current functionality and existing CI/security gates',
+            '3. does not suppress Trivy findings or weaken thresholds',
+            '4. updates Dockerfile/workflows as needed',
+            '5. explains any finding that has no safe fix yet',
+            '',
+            '## Acceptance criteria',
+            '- Trivy reports **0 HIGH** and **0 CRITICAL** vulnerabilities for this scope',
+            '- Existing build/test/security workflows remain passing',
+            '- No security gate is disabled or downgraded',
+          ])
+          Path('issue-body.md').write_text('\n'.join(lines) + '\n')
+          PY
+        env:
+          DEDUPE_KEY: ${{ steps.prep.outputs.dedupe_key }}
+          PR_NUMBER: ${{ steps.prep.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.prep.outputs.head_sha }}
+          HEAD_BRANCH: ${{ steps.prep.outputs.head_branch }}
+          RUN_ID: ${{ steps.prep.outputs.run_id }}
+
+      - name: Create, update, or close remediation issue
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        env:
+          HAS_FINDINGS: ${{ steps.summary.outputs.has_findings }}
+          DEDUPE_KEY: ${{ steps.prep.outputs.dedupe_key }}
+          ISSUE_TITLE: ${{ steps.prep.outputs.issue_title }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = `<!-- trivy-issue-key: ${process.env.DEDUPE_KEY} -->`;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const existing = issues.find(issue => (issue.body || '').includes(marker));
+            if (process.env.HAS_FINDINGS !== 'true') {
+              if (existing) {
+                await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, state: 'closed' });
+              }
+              return;
+            }
+            const body = fs.readFileSync('issue-body.md', 'utf8');
+            const labels = ['security', 'trivy', 'dependencies', 'copilot-candidate'];
+            if (existing) {
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, title: process.env.ISSUE_TITLE, body, labels });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title: process.env.ISSUE_TITLE, body, labels });
+            }

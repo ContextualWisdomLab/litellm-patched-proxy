@@ -37,6 +37,10 @@ The workflows upload:
 - Trivy JSON scan artifacts
 - CycloneDX SBOM artifacts
 
+When HIGH/CRITICAL findings remain, the repository is intended to create or
+update a single remediation issue that is ready for GitHub AI/Copilot
+assignment.
+
 ## Notes
 
 - This repository intentionally avoids organization/customer-specific product
