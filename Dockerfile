@@ -4,4 +4,4 @@ ENV PIP_ROOT_USER_ACTION=ignore
 
 RUN apk update \
     && apk add --no-cache curl jq python3 py3-pip ffmpeg \
-    && python3 -m pip install --no-cache-dir uv hypercorn
+    && python3 -m pip install --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0"
