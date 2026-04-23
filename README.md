@@ -12,6 +12,13 @@ This repository exists only to produce an immutable LiteLLM container image that
 - publishes to GHCR, and
 - records security-scan evidence in GitHub Actions and code scanning.
 
+Current reduction strategy is conservative:
+
+- remove only packages that are not yet proven to be runtime requirements,
+- keep Python/LiteLLM + Hypercorn compatibility first,
+- coordinate any deployment-time wrapper changes in the incident/operations repo
+  before promoting the image into live runtime use.
+
 ## Published image
 
 - GHCR package: `ghcr.io/seongho-bae/pre-secured-llm-proxy`
