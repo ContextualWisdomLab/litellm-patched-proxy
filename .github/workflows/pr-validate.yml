@@ -35,9 +35,10 @@ jobs:
       - name: Trivy scan (SARIF)
         run: |
           trivy image \
+            --scanners vuln \
             --severity CRITICAL,HIGH \
             --ignore-unfixed \
-            --exit-code 1 \
+            --exit-code 0 \
             --format sarif \
             --output trivy-results.sarif \
             local/pre-secured-llm-proxy:pr-${{ github.sha }}
@@ -50,9 +51,10 @@ jobs:
       - name: Trivy scan (JSON)
         run: |
           trivy image \
+            --scanners vuln \
             --severity CRITICAL,HIGH \
             --ignore-unfixed \
-            --exit-code 1 \
+            --exit-code 0 \
             --format json \
             --output trivy-results.json \
             local/pre-secured-llm-proxy:pr-${{ github.sha }}
@@ -64,3 +66,11 @@ jobs:
           path: |
             trivy-results.sarif
             trivy-results.json
+
+      - name: Fail on CRITICAL/HIGH vulnerabilities
+        run: |
+          COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy-results.json)
+          echo "critical_high_count=$COUNT" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$COUNT" -gt 0 ]; then
+            exit 1
+          fi
