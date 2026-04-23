@@ -82,7 +82,8 @@ jobs:
           critical = sum(count for (sev, *_), count in grouped.items() if sev == 'CRITICAL')
           high = sum(count for (sev, *_), count in grouped.items() if sev == 'HIGH')
           has_findings = critical + high > 0
-          Path(os.environ['GITHUB_OUTPUT']).open('a').write(f"has_findings={'true' if has_findings else 'false'}\n")
+          with Path(os.environ['GITHUB_OUTPUT']).open('a') as fh:
+            fh.write(f"has_findings={'true' if has_findings else 'false'}\n")
 
           marker = f"<!-- trivy-issue-key: {os.environ['DEDUPE_KEY']} -->"
           lines = [marker, '', '## Summary', 'Trivy detected HIGH/CRITICAL vulnerabilities that are currently blocking CI.', '']
@@ -91,7 +92,9 @@ jobs:
           lines.append(f"- Workflow run: https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}")
           lines.extend(['', '## Findings', f'- Critical: {critical}', f'- High: {high}', '', '| Severity | Package | Installed | Vulnerability | Target | Count |', '| --- | --- | --- | --- | --- | ---: |'])
           for (sev, pkg, installed, vuln_id, target), count in sorted(grouped.items()):
-            lines.append(f"| {sev} | {pkg} | {installed} | {vuln_id} | {target} | {count} |")
+            safe_pkg = (pkg or '').replace('|', '\\|')
+            safe_target = (target or '').replace('|', '\\|')
+            lines.append(f"| {sev} | {safe_pkg} | {installed} | {vuln_id} | {safe_target} | {count} |")
           lines.extend([
             '',
             '## Expected remediation',
