@@ -2,7 +2,7 @@ name: Trivy Issue On Findings
 
 on:
   workflow_run:
-    workflows: ["PR Validate"]
+    workflows: ["PR Validate", "Build Publish Scan"]
     types: [completed]
 
 permissions:
@@ -28,11 +28,13 @@ jobs:
               run_id: run.id,
               per_page: 100,
             });
-            const artifact = artifacts.find(a => a.name === 'pr-trivy-results');
+            const artifact = artifacts.find(a => a.name === 'pr-trivy-results' || a.name === 'ghcr-image-evidence');
             if (!artifact) {
-              core.setFailed('Trivy JSON artifact not found for triggering run');
+              core.notice('No Trivy artifact found for triggering run; nothing to do.');
+              core.setOutput('skip', 'true');
               return;
             }
+            core.setOutput('skip', 'false');
             core.setOutput('artifact_id', String(artifact.id));
             core.setOutput('run_id', String(run.id));
             core.setOutput('head_sha', run.head_sha);
@@ -42,6 +44,7 @@ jobs:
             core.setOutput('issue_title', pr ? `[Trivy] Remediate HIGH/CRITICAL vulnerabilities for PR #${pr.number}` : `[Trivy] Remediate HIGH/CRITICAL vulnerabilities on ${run.head_branch}`);
 
       - name: Download Trivy artifact
+        if: steps.prep.outputs.skip != 'true'
         run: |
           mkdir -p artifacts
           curl -L \
@@ -52,6 +55,7 @@ jobs:
           unzip -o artifact.zip -d artifacts
 
       - name: Build remediation summary
+        if: steps.prep.outputs.skip != 'true'
         id: summary
         run: |
           python3 - <<'PY'
@@ -60,7 +64,12 @@ jobs:
           from collections import Counter
           from pathlib import Path
 
-          data = json.loads(Path('artifacts/trivy-results.json').read_text())
+          candidates = [Path('artifacts/trivy-results.json')]
+          json_path = next((path for path in candidates if path.exists()), None)
+          if json_path is None:
+            raise SystemExit('Trivy JSON artifact not found after download')
+
+          data = json.loads(json_path.read_text())
           grouped = Counter()
           for result in data.get('Results', []):
             target = result.get('Target') or result.get('Type') or 'unknown'
@@ -73,7 +82,8 @@ jobs:
           critical = sum(count for (sev, *_), count in grouped.items() if sev == 'CRITICAL')
           high = sum(count for (sev, *_), count in grouped.items() if sev == 'HIGH')
           has_findings = critical + high > 0
-          Path(os.environ['GITHUB_OUTPUT']).open('a').write(f"has_findings={'true' if has_findings else 'false'}\n")
+          with Path(os.environ['GITHUB_OUTPUT']).open('a') as fh:
+            fh.write(f"has_findings={'true' if has_findings else 'false'}\n")
 
           marker = f"<!-- trivy-issue-key: {os.environ['DEDUPE_KEY']} -->"
           lines = [marker, '', '## Summary', 'Trivy detected HIGH/CRITICAL vulnerabilities that are currently blocking CI.', '']
@@ -82,7 +92,9 @@ jobs:
           lines.append(f"- Workflow run: https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}")
           lines.extend(['', '## Findings', f'- Critical: {critical}', f'- High: {high}', '', '| Severity | Package | Installed | Vulnerability | Target | Count |', '| --- | --- | --- | --- | --- | ---: |'])
           for (sev, pkg, installed, vuln_id, target), count in sorted(grouped.items()):
-            lines.append(f"| {sev} | {pkg} | {installed} | {vuln_id} | {target} | {count} |")
+            safe_pkg = (pkg or '').replace('|', '\\|')
+            safe_target = (target or '').replace('|', '\\|')
+            lines.append(f"| {sev} | {safe_pkg} | {installed} | {vuln_id} | {safe_target} | {count} |")
           lines.extend([
             '',
             '## Expected remediation',
@@ -108,6 +120,7 @@ jobs:
           RUN_ID: ${{ steps.prep.outputs.run_id }}
 
       - name: Create, update, or close remediation issue
+        if: steps.prep.outputs.skip != 'true'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
         env:
           HAS_FINDINGS: ${{ steps.summary.outputs.has_findings }}
