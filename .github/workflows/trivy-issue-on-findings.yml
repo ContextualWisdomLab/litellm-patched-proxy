@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Resolve run metadata
         id: prep
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         with:
           script: |
             const run = context.payload.workflow_run;
@@ -121,7 +121,7 @@ jobs:
 
       - name: Create, update, or close remediation issue
         if: steps.prep.outputs.skip != 'true'
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
           HAS_FINDINGS: ${{ steps.summary.outputs.has_findings }}
           DEDUPE_KEY: ${{ steps.prep.outputs.dedupe_key }}
