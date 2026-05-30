@@ -13,11 +13,9 @@ ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a25
 #   orjson>=3.11.6            fixes CVE-2025-67221
 #   Pillow>=12.2.0            fixes CVE-2026-40192
 #   python-multipart>=0.0.22  fixes CVE-2026-24486
-RUN apk update \
-    && apk add --no-cache curl jq python3 py3-pip ffmpeg \
+RUN apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache python-3.13 python-3.13-base \
     && python3 -m pip install --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0" \
-    && python3 -m pip install --no-cache-dir \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
          "python-multipart>=0.0.22"
