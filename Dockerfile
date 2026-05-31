@@ -36,8 +36,10 @@ RUN tmpdir="$(mktemp -d)" \
 
 # Upgrade every picomatch installation found in the base image to 4.0.4 to fix
 # CVE-2026-33671 (ReDoS via extglob quantifiers in picomatch <4.0.4).
-RUN find /usr /opt /app /root -path "*/node_modules/picomatch" -maxdepth 15 -type d 2>/dev/null \
+# ⚡ Bolt: Cache network download to avoid O(N) external network requests in loop
+RUN curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /tmp/picomatch.tgz \
+    && find /usr /opt /app /root -path "*/node_modules/picomatch" -maxdepth 15 -type d 2>/dev/null \
     | while read -r d; do \
-        curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" \
-          | tar -xz --strip-components=1 -C "$d"; \
-      done
+        tar -xz --strip-components=1 -f /tmp/picomatch.tgz -C "$d"; \
+      done \
+    && rm -f /tmp/picomatch.tgz
