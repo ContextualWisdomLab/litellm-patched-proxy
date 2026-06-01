@@ -16,8 +16,9 @@ ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a25
 RUN apk update \
     && apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache python-3.13 python-3.13-base \
-    && python3 -m pip install --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0" \
-    && python3 -m pip install --no-cache-dir \
+    && python3 -m pip install --no-cache-dir "uv==0.11.7" \
+    # ⚡ Bolt: Use uv for remaining package installation to significantly reduce build time
+    && uv pip install --system --no-cache "hypercorn==0.18.0" \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
          "python-multipart>=0.0.22"
