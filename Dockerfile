@@ -40,6 +40,6 @@ RUN tmpdir="$(mktemp -d)" \
 RUN curl -fsSL -o /tmp/picomatch.tgz "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" \
     && find /usr /opt /app /root -path "*/node_modules/picomatch" -maxdepth 15 -type d 2>/dev/null \
     | while read -r d; do \
-        tar -xz --strip-components=1 -C "$d" -f /tmp/picomatch.tgz; \
+        tar -xz --strip-components=1 -C "$d" -f /tmp/picomatch.tgz || true; \
       done \
     && rm /tmp/picomatch.tgz
