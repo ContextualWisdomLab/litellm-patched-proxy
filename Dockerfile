@@ -18,7 +18,7 @@ ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a25
 RUN apk update \
     && apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache python-3.13 python-3.13-base py3-pip py3-pip-wheel py3.13-pip py3.13-pip-base \
-    && python3 -m pip install --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0" \
+    && python3 -m pip install --no-cache-dir "uv>=0.11.18" "hypercorn==0.18.0" \
     && python3 -m pip install --no-cache-dir \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
