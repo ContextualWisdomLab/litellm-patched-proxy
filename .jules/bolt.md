@@ -1,0 +1,3 @@
+## 2024-05-24 - Avoid Network Requests Inside Bash Loops in Dockerfiles
+**Learning:** Found a Dockerfile anti-pattern where a remote asset was being curl'd individually for every matching directory found by `find` across the filesystem. In an environment with many matching directories (like `node_modules` paths), this causes an O(N) explosion of redundant network requests that significantly slows down the container build process.
+**Action:** Always inspect bash loops (`while`, `for`) in `Dockerfile` RUN instructions. If the loop body fetches a static remote asset, hoist the fetch operation outside the loop to download it once to a temporary file, read from the local file inside the loop, and clean up afterward.
