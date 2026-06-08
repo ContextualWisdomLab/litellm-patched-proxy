@@ -1,0 +1,4 @@
+## 2026-06-08 - Base Image Dependencies Carry CVEs Before Runtime Wrapping
+**Vulnerability:** The base Python image was carrying HIGH severity vulnerabilities for `urllib3` (CVE-2026-44431, CVE-2026-44432) which allows unbounded decompression chain and massive memory allocation leading to DoS.
+**Learning:** Upstream functional/runtime dependencies in base images might not receive rapid security updates; vulnerabilities persist if we only scan the final layer and don't explicitly overwrite vulnerable versions using our pip wrapper layer.
+**Prevention:** In container-based security proxy projects, always run a base layer scan before the entrypoint wrapper modifications. Maintain explicit manual upgrade commands for inherited unpatched packages within the proxy's `Dockerfile` to shield against inherited upstream CVEs.
