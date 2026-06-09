@@ -16,8 +16,9 @@ ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a25
 RUN apk update \
     && apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache python-3.13 python-3.13-base \
-    && python3 -m pip install --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0" \
     && python3 -m pip install --no-cache-dir \
+         "uv==0.11.7" \
+         "hypercorn==0.18.0" \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
          "python-multipart>=0.0.22"
@@ -36,8 +37,9 @@ RUN tmpdir="$(mktemp -d)" \
 
 # Upgrade every picomatch installation found in the base image to 4.0.4 to fix
 # CVE-2026-33671 (ReDoS via extglob quantifiers in picomatch <4.0.4).
-RUN find /usr /opt /app /root -path "*/node_modules/picomatch" -maxdepth 15 -type d 2>/dev/null \
+RUN curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /tmp/picomatch.tgz \
+    && find /usr /opt /app /root -path "*/node_modules/picomatch" -maxdepth 15 -type d 2>/dev/null \
     | while read -r d; do \
-        curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" \
-          | tar -xz --strip-components=1 -C "$d"; \
-      done
+        tar -xz --strip-components=1 -C "$d" -f /tmp/picomatch.tgz; \
+      done \
+    && rm /tmp/picomatch.tgz
