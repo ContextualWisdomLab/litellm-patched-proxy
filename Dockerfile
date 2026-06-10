@@ -7,6 +7,7 @@ ARG LITELLM_REDIS_CACHE_URL=https://raw.githubusercontent.com/Seongho-Bae/litell
 ARG LITELLM_REDIS_CACHE_SHA256=0fabfb741e3a482b002d70cbf59c0627239b59d0ba08a0300c06f9d049f09c81
 ARG LITELLM_LOWEST_LATENCY_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/661948eb340aa7661a4203205154cf22106077df/litellm/router_strategy/lowest_latency.py
 ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a2520815da12c8e46d448
+ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e578571c
 
 # Install OS packages, keep pinned functional deps, and upgrade Python packages
 # that carry HIGH vulnerabilities shipped in the base image:
@@ -42,8 +43,9 @@ RUN tmpdir="$(mktemp -d)" \
 # CVE-2026-33671 (ReDoS via extglob quantifiers in picomatch <4.0.4).
 # ⚡ Bolt Optimization: Download tarball once to avoid O(N) network requests in loop
 RUN curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /tmp/picomatch.tgz \
+    && echo "$PICOMATCH_SHA256  /tmp/picomatch.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz; exit 1; } \
     && find /usr /opt /app /root -path "*/node_modules/picomatch" -maxdepth 15 -type d 2>/dev/null \
     | while read -r d; do \
         tar -xz -f /tmp/picomatch.tgz --strip-components=1 -C "$d"; \
       done \
-    && rm /tmp/picomatch.tgz
+    && rm -f /tmp/picomatch.tgz
