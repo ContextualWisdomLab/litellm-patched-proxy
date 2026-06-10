@@ -7,20 +7,25 @@ ARG LITELLM_REDIS_CACHE_URL=https://raw.githubusercontent.com/Seongho-Bae/litell
 ARG LITELLM_REDIS_CACHE_SHA256=0fabfb741e3a482b002d70cbf59c0627239b59d0ba08a0300c06f9d049f09c81
 ARG LITELLM_LOWEST_LATENCY_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/661948eb340aa7661a4203205154cf22106077df/litellm/router_strategy/lowest_latency.py
 ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a2520815da12c8e46d448
+ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e578571c
 
 # Install OS packages, keep pinned functional deps, and upgrade Python packages
 # that carry HIGH vulnerabilities shipped in the base image:
 #   orjson>=3.11.6            fixes CVE-2025-67221
-#   Pillow>=12.2.0            fixes CVE-2026-40192
-#   python-multipart>=0.0.22  fixes CVE-2026-24486
+#   Pillow>=12.2.0            fixes CVE-2026-40192, CVE-2026-42311
+#   python-multipart>=0.0.27  fixes CVE-2026-24486, CVE-2026-42561
+#   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
+#   litellm>=1.83.10          fixes CVE-2026-40217
 RUN apk update \
     && apk add --no-cache curl jq python3 py3-pip ffmpeg \
-    && apk upgrade --no-cache python-3.13 python-3.13-base \
+    && apk upgrade --no-cache python-3.13 python-3.13-base py3-pip-wheel py3.13-pip py3.13-pip-base \
     && python3 -m pip install --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0" \
     && python3 -m pip install --no-cache-dir \
+         "litellm>=1.83.10" \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
-         "python-multipart>=0.0.22"
+         "python-multipart>=0.0.27" \
+         "urllib3>=2.7.0"
 
 # Overlay the Redis timedelta serialization fix from Seongho-Bae/litellm PR #7
 # onto the pinned upstream image without changing the base digest.
@@ -36,8 +41,11 @@ RUN tmpdir="$(mktemp -d)" \
 
 # Upgrade every picomatch installation found in the base image to 4.0.4 to fix
 # CVE-2026-33671 (ReDoS via extglob quantifiers in picomatch <4.0.4).
-RUN find /usr /opt /app /root -path "*/node_modules/picomatch" -maxdepth 15 -type d 2>/dev/null \
+# ⚡ Bolt Optimization: Download tarball once to avoid O(N) network requests in loop
+RUN curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /tmp/picomatch.tgz \
+    && echo "$PICOMATCH_SHA256  /tmp/picomatch.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz; exit 1; } \
+    && find /usr /opt /app /root -path "*/node_modules/picomatch" -maxdepth 15 -type d 2>/dev/null \
     | while read -r d; do \
-        curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" \
-          | tar -xz --strip-components=1 -C "$d"; \
-      done
+        tar -xz -f /tmp/picomatch.tgz --strip-components=1 -C "$d"; \
+      done \
+    && rm -f /tmp/picomatch.tgz
