@@ -19,9 +19,9 @@ ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e57
 RUN apk update \
     && apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache python-3.13 python-3.13-base py3-pip-wheel py3.13-pip py3.13-pip-base expat \
-    && python3 -m pip install --no-cache-dir "uv==0.11.7" \
-    && uv pip install --system --no-cache "hypercorn==0.18.0" \
-    && uv pip install --system --no-cache \
+    && python3 -m pip install --break-system-packages --no-cache-dir "uv==0.11.7" \
+    && uv pip install --system --break-system-packages --no-cache "hypercorn==0.18.0" \
+    && uv pip install --system --break-system-packages --no-cache \
          "litellm>=1.83.10" \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \

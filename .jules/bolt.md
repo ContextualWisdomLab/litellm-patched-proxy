@@ -7,3 +7,6 @@
 ## 2024-06-12 - Missing system dependency for uv in alpine
 **Learning:** Found a build issue when introducing `uv` to the `Dockerfile`. The error `ImportError: /usr/lib/python3.13/lib-dynload/pyexpat.cpython-313-x86_64-linux-gnu.so: undefined symbol: XML_SetHashSalt16Bytes` appeared because `uv` installation via pip triggered a system package upgrade compatibility issue.
 **Action:** Include `expat` to the explicit `apk upgrade` command, which ensures that `pyexpat` correctly links to the updated C library dependencies for parsing XML.
+## 2024-06-13 - Python 3.13 system package protection in Alpine
+**Learning:** Found an issue where the Alpine Python 3.13 environment strictly enforces PEP 668 (externally managed environment). Consequently, using `python3 -m pip install "uv==...` without a virtual environment or flag immediately fails.
+**Action:** When leveraging the base python environment inside a Dockerfile with `pip`, explicit use of `--break-system-packages` is required on modern python versions to override PEP 668 blocks when that behavior is specifically intended (as it is when bootstrapping `uv`). Additionally, `uv pip install --system` does not natively require the `--break-system-packages` flag unless strictly enforcing global config, but it's safe to supply it if `uv` adopts the same default protections.
