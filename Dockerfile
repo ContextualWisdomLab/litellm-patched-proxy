@@ -16,11 +16,13 @@ ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e57
 #   python-multipart>=0.0.27  fixes CVE-2026-24486, CVE-2026-42561
 #   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
 #   litellm>=1.83.10          fixes CVE-2026-40217
+# ⚡ Bolt Optimization: Use uv for significantly faster package installation and dependency resolution
 RUN apk update \
     && apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache python-3.13 python-3.13-base py3-pip-wheel py3.13-pip py3.13-pip-base \
-    && python3 -m pip install --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0" \
-    && python3 -m pip install --no-cache-dir \
+    && python3 -m pip install --no-cache-dir --break-system-packages "uv==0.11.7" \
+    && uv pip install --system --break-system-packages --no-cache \
+         "hypercorn==0.18.0" \
          "litellm>=1.83.10" \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
