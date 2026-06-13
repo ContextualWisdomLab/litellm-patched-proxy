@@ -1,3 +1,6 @@
 ## 2024-06-10 - Network bottlenecks in Dockerfile iterations
 **Learning:** Found an O(N) network bottleneck where `curl` was downloading the same package tarball (`picomatch`) repeatedly inside a `find ... | while read ...` loop. This multiplied build latency and external network requests by the number of matching directories.
 **Action:** When patching files across multiple directories via shell iterations in Dockerfiles, always download remote assets to a temporary file *once* outside the loop, use the local file during iteration, and remove the temp file afterward.
+## 2024-06-13 - Optimizing Python dependency builds in Docker
+**Learning:** Found that using `python3 -m pip install` for a large list of dependencies within an Alpine Linux Dockerfile is slow and may hit PEP 668 restrictions in Alpine 3.13+. `uv` is an ultra-fast Python package installer written in Rust. Since `uv` is already being installed in the Dockerfile, we can reuse it to install subsequent dependencies.
+**Action:** Replace `python3 -m pip install --no-cache-dir` with `uv pip install --system --break-system-packages --no-cache` to significantly reduce dependency resolution and download latency during container image builds.
