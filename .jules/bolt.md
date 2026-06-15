@@ -5,3 +5,7 @@
 ## 2025-01-29 - Improve Docker build step container dependency build latency
 **Learning:** `python -m pip install` commands used for installing Python packages inside Docker images introduce a bottleneck due to `pip`'s dependency resolution algorithms which impacts build speed. Replacing standard `pip` with `uv pip` directly speeds up container dependency build times. Using Alpine Python 3.13 requires the `--break-system-packages` flag.
 **Action:** Install `uv` via `python -m pip install --break-system-packages uv` first. Then run `uv pip install --system --break-system-packages --no-cache` for the rest of Python packages for faster build speed inside Docker.
+
+## 2025-01-29 - Avoid pyexpat ABI mismatch errors in Alpine
+**Learning:** Upgrading Python base packages in Alpine Linux without also upgrading their underlying C-library dependencies can cause ABI mismatch errors. For example, upgrading Python without `expat` leads to an `undefined symbol: XML_SetHashSalt16Bytes` error in `pyexpat.cpython.so` when using `pip`.
+**Action:** Always include the underlying C-libraries (e.g., `expat`) explicitly in both `apk add` and `apk upgrade` commands when dealing with Python environments in Alpine.
