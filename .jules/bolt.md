@@ -1,3 +1,6 @@
 ## 2024-06-10 - Network bottlenecks in Dockerfile iterations
 **Learning:** Found an O(N) network bottleneck where `curl` was downloading the same package tarball (`picomatch`) repeatedly inside a `find ... | while read ...` loop. This multiplied build latency and external network requests by the number of matching directories.
 **Action:** When patching files across multiple directories via shell iterations in Dockerfiles, always download remote assets to a temporary file *once* outside the loop, use the local file during iteration, and remove the temp file afterward.
+## 2024-06-11 - Accelerating Dockerfile Python Dependency Builds
+**Learning:** Standard `pip install` in Dockerfiles (especially on Alpine) is extremely slow when resolving and building multiple dependencies. By first installing `uv` via standard `pip`, and then replacing subsequent `pip install` commands with `uv pip install --system --break-system-packages --no-cache`, we can vastly decrease container dependency build latency.
+**Action:** When adding or upgrading multiple Python dependencies in a Dockerfile within PEP 668-enforced environments (like Alpine Linux Python 3.13+), always use `uv pip install` with the `--break-system-packages` flag to optimize build time.
