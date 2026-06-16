@@ -4,3 +4,6 @@
 ## 2024-06-11 - Accelerating Dockerfile Python Dependency Builds
 **Learning:** Standard `pip install` in Dockerfiles (especially on Alpine) is extremely slow when resolving and building multiple dependencies. By first installing `uv` via standard `pip`, and then replacing subsequent `pip install` commands with `uv pip install --system --break-system-packages --no-cache`, we can vastly decrease container dependency build latency.
 **Action:** When adding or upgrading multiple Python dependencies in a Dockerfile within PEP 668-enforced environments (like Alpine Linux Python 3.13+), always use `uv pip install` with the `--break-system-packages` flag to optimize build time.
+## 2024-06-12 - Alpine Package Names vs Debian Package Names
+**Learning:** When attempting to resolve an ABI mismatch for `pyexpat` by explicitly installing the underlying C library, I incorrectly used the Debian/Ubuntu package name `libexpat1`. Alpine Linux uses different package naming conventions, and the correct package name is simply `expat`.
+**Action:** When working with `apk` in Alpine environments, never assume package names match Debian (`apt`). Always verify the correct Alpine package name (e.g., using `apk search` locally or searching https://pkgs.alpinelinux.org/packages) before modifying Dockerfiles.
