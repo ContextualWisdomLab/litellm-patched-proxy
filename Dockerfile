@@ -15,17 +15,25 @@ ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e57
 #   Pillow>=12.2.0            fixes CVE-2026-40192, CVE-2026-42311
 #   python-multipart>=0.0.27  fixes CVE-2026-24486, CVE-2026-42561
 #   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
-#   litellm>=1.83.10          fixes CVE-2026-40217
+#   litellm>=1.89.2           fixes CVE-2026-40217, CVE-2026-49468
+#   PyJWT>=2.13.0             fixes CVE-2026-48526
+#   cryptography>=49.0.0      fixes GHSA-537c-gmf6-5ccf
+#   starlette>=1.3.1          fixes CVE-2026-48818, CVE-2026-54283
+#   tornado>=6.5.7            fixes CVE-2026-49853, CVE-2026-49855
 RUN apk update \
-    && apk add --no-cache curl jq python3 py3-pip ffmpeg \
-    && apk upgrade --no-cache python-3.13 python-3.13-base py3-pip-wheel py3.13-pip py3.13-pip-base \
-    && python3 -m pip install --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0" \
-    && python3 -m pip install --no-cache-dir \
-         "litellm>=1.83.10" \
+    && apk add --no-cache curl jq python3 py3-pip ffmpeg expat \
+    && apk upgrade --no-cache python-3.13 python-3.13-base py3-pip-wheel py3.13-pip py3.13-pip-base libcrypto3 libssl3 openssl busybox expat \
+    && python3 -m pip install --break-system-packages --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0" \
+    && uv pip install --system --break-system-packages --no-cache \
+         "litellm>=1.89.2" \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
          "python-multipart>=0.0.27" \
-         "urllib3>=2.7.0"
+         "urllib3>=2.7.0" \
+         "PyJWT>=2.13.0" \
+         "cryptography>=49.0.0" \
+         "starlette>=1.3.1" \
+         "tornado>=6.5.7"
 
 # Overlay the Redis timedelta serialization fix from Seongho-Bae/litellm PR #7
 # onto the pinned upstream image without changing the base digest.
