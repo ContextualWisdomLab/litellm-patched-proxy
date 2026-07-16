@@ -19,8 +19,16 @@ ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a1409
 #   python-multipart>=0.0.30  fixes CVE-2026-24486, CVE-2026-42561, CVE-2026-53539
 #   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
 #   litellm==1.84.10          fixes CVE-2026-40217, CVE-2026-49468 and bounds version drift
-RUN apk add --no-cache curl jq python3 py3-pip ffmpeg \
-    && apk upgrade --no-cache \
+RUN apk_retry() { \
+        attempt=1; \
+        while ! apk "$@"; do \
+          [ "$attempt" -ge 3 ] && return 1; \
+          sleep $((attempt * 5)); \
+          attempt=$((attempt + 1)); \
+        done; \
+      } \
+    && apk_retry add --no-cache curl jq python3 py3-pip ffmpeg \
+    && apk_retry upgrade --no-cache \
     && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
     && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir \
          "litellm==1.84.10" \

@@ -19,6 +19,7 @@
 - 최신 모델 상태 조회용 `(model_id, model_name, checked_at DESC, id DESC)` 인덱스, 보존 배치용 `(checked_at, id)` 인덱스와 5,000행 단위 정리 템플릿을 추가했습니다. INVALID 또는 오정의 인덱스만 온라인으로 교체하고, 삭제문은 승인 전 실행되지 않도록 주석 처리했습니다.
 - 비어 있던 CodeQL 행렬에 GitHub Actions 분석 대상을 지정해 job 0개 즉시 실패를 수정했습니다.
 - 저장소 ruleset이 요구하지만 없었던 OSSF Scorecard 검사를 `develop` PR과 push에 추가하고 SARIF를 code scanning에 제출합니다.
+- Chainguard APK 저장소의 일시적인 패키지 다운로드 거부로 빌드가 실패하지 않도록 add/upgrade를 최대 3회 제한 재시도합니다.
 
 ### 검증 및 배포
 
