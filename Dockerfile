@@ -21,11 +21,6 @@ ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a1409
 #   litellm==1.84.10          fixes CVE-2026-40217, CVE-2026-49468 and bounds version drift
 RUN apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache \
-    && apk add --no-cache --upgrade \
-         "busybox=1.37.0-r61" \
-         "libcrypto3=3.6.3-r3" \
-         "libssl3=3.6.3-r3" \
-         "openssl=3.6.3-r3" \
     && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
     && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir \
          "litellm==1.84.10" \
@@ -44,7 +39,7 @@ RUN apk add --no-cache curl jq python3 py3-pip ffmpeg \
 
 # Overlay reviewed fixes from immutable fork commits onto the pinned package.
 RUN tmpdir="$(mktemp -d)" \
-    && pkg_root="$(python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
+    && pkg_root="$(/app/.venv/bin/python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
     && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/caching/redis_cache.py" -o "$tmpdir/redis_cache.py" \
     && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/router_strategy/lowest_latency.py" -o "$tmpdir/lowest_latency.py" \
     && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/constants.py" -o "$tmpdir/constants.py" \
@@ -60,7 +55,7 @@ RUN tmpdir="$(mktemp -d)" \
     && install -m 0644 "$tmpdir/constants.py" "$pkg_root/constants.py" \
     && install -m 0644 "$tmpdir/health_check.py" "$pkg_root/proxy/health_check.py" \
     && install -m 0644 "$tmpdir/proxy_server.py" "$pkg_root/proxy/proxy_server.py" \
-    && python3 -c 'from importlib.metadata import version; assert version("litellm") == "1.84.10"' \
+    && /app/.venv/bin/python3 -c 'from importlib.metadata import version; assert version("litellm") == "1.84.10"' \
     && grep -Fq 'DEFAULT_HEALTH_CHECK_CONCURRENCY' "$pkg_root/constants.py" \
     && grep -Fq 'background_health_check_cycle_start' "$pkg_root/proxy/proxy_server.py" \
     && rm -rf "$tmpdir"
@@ -71,11 +66,11 @@ RUN curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /
     && echo "$PICOMATCH_SHA256  /tmp/picomatch.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz; exit 1; } \
     && curl -fsSL "https://registry.npmjs.org/sigstore/-/sigstore-4.1.1.tgz" -o /tmp/sigstore.tgz \
     && echo "$SIGSTORE_SHA256  /tmp/sigstore.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz; exit 1; } \
-    && find /usr /opt /app /root -path "*/node_modules/picomatch" -maxdepth 15 -type d 2>/dev/null \
+    && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/picomatch" -type d 2>/dev/null \
     | while read -r d; do \
         tar -xz -f /tmp/picomatch.tgz --strip-components=1 -C "$d"; \
       done \
-    && find /usr /opt /app /root -path "*/node_modules/sigstore" -maxdepth 15 -type d 2>/dev/null \
+    && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/sigstore" -type d 2>/dev/null \
     | while read -r d; do \
         tar -xz -f /tmp/sigstore.tgz --strip-components=1 -C "$d"; \
       done \
