@@ -63,6 +63,12 @@ jobs:
               psql -U postgres -v ON_ERROR_STOP=1 "$@"
           }
 
+          if psql_exec < ops/health_check_history_maintenance.sql > /tmp/missing-table.log 2>&1; then
+            echo "maintenance unexpectedly succeeded without the required table" >&2
+            exit 1
+          fi
+          grep -Fq 'required table public."LiteLLM_HealthCheckTable" does not exist' /tmp/missing-table.log
+
           psql_exec <<'SQL'
           CREATE TABLE public."LiteLLM_HealthCheckTable" (
               id bigint PRIMARY KEY,

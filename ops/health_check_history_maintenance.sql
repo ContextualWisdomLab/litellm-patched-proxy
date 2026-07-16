@@ -5,6 +5,14 @@ SET search_path TO pg_catalog, public;
 -- Run this file with psql autocommit enabled and without BEGIN/COMMIT.
 -- CREATE/DROP INDEX CONCURRENTLY cannot run inside a transaction block.
 
+DO $preflight$
+BEGIN
+    IF to_regclass('public."LiteLLM_HealthCheckTable"') IS NULL THEN
+        RAISE EXCEPTION 'required table public."LiteLLM_HealthCheckTable" does not exist';
+    END IF;
+END
+$preflight$;
+
 -- Read catalog estimates only. This does not scan the history table.
 SELECT
     c.reltuples::bigint AS estimated_rows,
