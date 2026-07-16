@@ -9,6 +9,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   IMAGE_NAME: ghcr.io/seongho-bae/pre-secured-llm-proxy
 
+permissions:
+  contents: read
+
 jobs:
   sql-maintenance:
     runs-on: ubuntu-latest

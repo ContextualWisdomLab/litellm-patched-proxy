@@ -16,7 +16,7 @@
 - 포크에서 가져오는 파일은 커밋 SHA와 파일별 SHA-256을 모두 검증한 뒤 설치합니다.
 - 부분 OS 업그레이드로 `pyexpat`와 `libexpat1`의 ABI가 어긋나던 경로를 제거하고, 설치된 OS 패키지를 의존성 단위로 함께 업그레이드합니다. APK 저장소 스냅샷 없이 사라질 수 있는 리비전을 강제하지 않고, 불변 기반 이미지에서 `apk upgrade` 후 Trivy 게이트로 수정 상태를 검증합니다.
 - Trivy가 검출한 Python 의존성 7종과 `uv`, 중복 npm `sigstore` 설치본을 수정 버전으로 고정했습니다. 기반 이미지에 남아 있던 실행 불필요 UV 패키지 캐시를 제거하고, `python-multipart`의 `CVE-2026-53539` 수정 버전도 반영했습니다. npm 패키지는 기존 디렉터리를 비운 뒤 검증된 tarball로 교체하며 압축 해제 실패 시 빌드를 중단합니다.
-- 최신 모델 상태 조회용 `(model_id, model_name, checked_at DESC, id DESC)` 인덱스, 보존 배치용 `(checked_at, id)` 인덱스와 5,000행 단위 정리 템플릿을 추가했습니다. PostgreSQL 시스템 카탈로그로 접근 방식·키 순서·정렬·NULL 순서를 구조적으로 확인해 INVALID 또는 오정의 인덱스만 온라인으로 교체합니다. PR 검증에서는 재실행 시 기존 인덱스가 유지되고 오정의 인덱스만 교체되는지 PostgreSQL 16으로 확인하며, 삭제문은 승인 전 실행되지 않도록 주석 처리했습니다.
+- 최신 모델 상태 조회용 `(model_id, model_name, checked_at DESC, id DESC)` 인덱스, 보존 배치용 `(checked_at, id)` 인덱스와 5,000행 단위 정리 템플릿을 추가했습니다. 기본 사전 점검은 전체 테이블을 읽지 않는 카탈로그 추정치만 사용하고 정확한 보존 건수 조회는 비피크 승인용 주석 템플릿으로 분리했습니다. PostgreSQL 시스템 카탈로그로 접근 방식·키 순서·정렬·NULL 순서를 구조적으로 확인해 INVALID 또는 오정의 인덱스만 온라인으로 교체합니다. PR 검증에서는 재실행 시 기존 인덱스가 유지되고 오정의 인덱스만 교체되는지 PostgreSQL 16으로 확인하며, 삭제문은 승인 전 실행되지 않도록 주석 처리했습니다.
 - 비어 있던 CodeQL 행렬에 GitHub Actions 분석 대상을 지정해 job 0개 즉시 실패를 수정했습니다.
 - 저장소 ruleset이 요구하지만 없었던 OSSF Scorecard 검사를 `develop` PR과 push에 추가하고 SARIF를 code scanning에 제출합니다.
 - Chainguard APK 저장소의 일시적인 패키지 다운로드 거부로 빌드가 실패하지 않도록 add/upgrade를 최대 3회 제한 재시도합니다.

@@ -5,15 +5,16 @@ SET search_path TO pg_catalog, public;
 -- Run this file with psql autocommit enabled and without BEGIN/COMMIT.
 -- CREATE/DROP INDEX CONCURRENTLY cannot run inside a transaction block.
 
--- Review the candidate counts before changing production data.
+-- Read catalog estimates only. This does not scan the history table.
 SELECT
-    count(*) AS total_rows,
-    count(*) FILTER (WHERE checked_at < now() - interval '30 days') AS older_than_30_days,
-    count(*) FILTER (WHERE checked_at < now() - interval '60 days') AS older_than_60_days,
-    count(*) FILTER (WHERE checked_at < now() - interval '90 days') AS older_than_90_days,
-    min(checked_at) AS oldest_check,
-    max(checked_at) AS newest_check
-FROM "LiteLLM_HealthCheckTable";
+    c.reltuples::bigint AS estimated_rows,
+    stats.n_live_tup AS statistics_live_rows,
+    stats.last_analyze,
+    stats.last_autoanalyze,
+    pg_size_pretty(pg_total_relation_size(c.oid)) AS total_relation_size
+FROM pg_class AS c
+LEFT JOIN pg_stat_user_tables AS stats ON stats.relid = c.oid
+WHERE c.oid = 'public."LiteLLM_HealthCheckTable"'::regclass;
 
 -- Replace only an invalid or mismatched latest-state index. \gexec sends each
 -- generated CONCURRENTLY statement separately, outside a transaction block.
@@ -163,6 +164,17 @@ WHERE NOT EXISTS (
     WHERE indisvalid AND matches_definition
 )
 \gexec
+
+-- Exact retention counts scan the history table. Keep this query commented and
+-- run it only in an approved off-peak window after reviewing current I/O load.
+-- SELECT
+--     count(*) AS total_rows,
+--     count(*) FILTER (WHERE checked_at < now() - interval '30 days') AS older_than_30_days,
+--     count(*) FILTER (WHERE checked_at < now() - interval '60 days') AS older_than_60_days,
+--     count(*) FILTER (WHERE checked_at < now() - interval '90 days') AS older_than_90_days,
+--     min(checked_at) AS oldest_check,
+--     max(checked_at) AS newest_check
+-- FROM "LiteLLM_HealthCheckTable";
 
 -- Retention template: uncomment and run one batch at a time only after approval.
 -- WITH expired AS (
