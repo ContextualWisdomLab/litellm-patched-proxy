@@ -27,6 +27,11 @@ ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a1409
 RUN apk update \
     && apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache \
+    && apk add --no-cache --upgrade \
+         "busybox=1.37.0-r61" \
+         "libcrypto3=3.6.3-r3" \
+         "libssl3=3.6.3-r3" \
+         "openssl=3.6.3-r3" \
     && python3 -m pip install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
     && python3 -m pip install --no-cache-dir \
          "litellm==1.84.10" \
