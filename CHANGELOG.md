@@ -1,6 +1,6 @@
 # 변경 이력
 
-## 2026-07-17 - LiteLLM 백그라운드 상태 점검 부하 완화
+## 2026-07-17 KST - LiteLLM 백그라운드 상태 점검 부하 완화
 
 ### 장애 근거
 
@@ -20,7 +20,7 @@
 - 비어 있던 CodeQL 행렬에 GitHub Actions 분석 대상을 지정해 job 0개 즉시 실패를 수정했습니다.
 - 저장소 ruleset이 요구하지만 없었던 OSSF Scorecard 검사를 `develop` PR과 push에 추가하고 SARIF를 code scanning에 제출합니다.
 - `develop` 갱신으로 PR merge SHA가 바뀌어도 수동 PR 검증에서 SQL·Trivy·CodeQL 결과를 동일한 head SHA에 귀속시킬 수 있도록 CodeQL Actions 분석 job을 추가했습니다.
-- Trivy가 취약점 0건일 때 생성하는 빈 SARIF에도 심각도 0.0의 규칙 메타데이터를 보강해, GitHub ruleset이 성공한 빈 분석을 “Trivy 결과 없음”으로 오판하지 않도록 했습니다.
+- Trivy가 취약점 0건일 때 생성하는 빈 SARIF에도 심각도 0.0의 규칙과 note attestation을 보강해, GitHub ruleset이 성공한 빈 분석을 “Trivy 결과 없음”으로 오판하지 않도록 했습니다.
 - Chainguard APK 저장소의 일시적인 패키지 다운로드 거부로 빌드가 실패하지 않도록 add/upgrade를 최대 3회 제한 재시도합니다.
 
 ### 검증 및 배포
@@ -32,5 +32,5 @@
 ### 롤백
 
 - 새 이미지에서 readiness 또는 모델 호출 회귀가 확인되면 직전 배포 이미지 태그와 digest로 되돌립니다.
-- DB 복합 인덱스는 서비스 쓰기를 막지 않는 `CREATE INDEX CONCURRENTLY`로 생성하며, 필요하면 `DROP INDEX CONCURRENTLY "LiteLLM_HealthCheckTable_latest_model_idx"`로 제거합니다.
+- 이미지만 롤백할 때는 DB 복합 인덱스 두 개를 유지합니다. 스키마 변경도 롤백해야 하면 `DROP INDEX CONCURRENTLY "LiteLLM_HealthCheckTable_latest_model_idx"`와 `DROP INDEX CONCURRENTLY "LiteLLM_HealthCheckTable_retention_idx"`를 각각 psql 자동 커밋으로 실행합니다.
 - 보존 정리는 자동 실행하지 않습니다. 승인된 기간과 배치 수를 확인한 뒤 별도 유지보수 창에서만 수행합니다.
