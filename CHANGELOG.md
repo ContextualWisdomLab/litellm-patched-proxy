@@ -19,6 +19,7 @@
 - 최신 모델 상태 조회용 `(model_id, model_name, checked_at DESC, id DESC)` 인덱스, 보존 배치용 `(checked_at, id)` 인덱스와 5,000행 단위 정리 템플릿을 추가했습니다. 기본 사전 점검은 전체 테이블을 읽지 않는 카탈로그 추정치만 사용하고 정확한 보존 건수 조회는 비피크 승인용 주석 템플릿으로 분리했습니다. PostgreSQL 시스템 카탈로그로 접근 방식·키 순서·정렬·NULL 순서를 구조적으로 확인해 INVALID 또는 오정의 인덱스만 온라인으로 교체합니다. PR 검증에서는 재실행 시 기존 인덱스가 유지되고 오정의 인덱스만 교체되는지 PostgreSQL 16으로 확인하며, 삭제문은 승인 전 실행되지 않도록 주석 처리했습니다.
 - 비어 있던 CodeQL 행렬에 GitHub Actions 분석 대상을 지정해 job 0개 즉시 실패를 수정했습니다.
 - 저장소 ruleset이 요구하지만 없었던 OSSF Scorecard 검사를 `develop` PR과 push에 추가하고 SARIF를 code scanning에 제출합니다.
+- `develop` 갱신으로 PR merge SHA가 바뀌어도 수동 PR 검증에서 SQL·Trivy·CodeQL 결과를 동일한 head SHA에 귀속시킬 수 있도록 CodeQL Actions 분석 job을 추가했습니다.
 - Chainguard APK 저장소의 일시적인 패키지 다운로드 거부로 빌드가 실패하지 않도록 add/upgrade를 최대 3회 제한 재시도합니다.
 
 ### 검증 및 배포
