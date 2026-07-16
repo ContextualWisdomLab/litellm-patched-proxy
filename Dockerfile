@@ -16,7 +16,7 @@ ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a1409
 # that carry HIGH vulnerabilities shipped in the base image:
 #   orjson>=3.11.6            fixes CVE-2025-67221
 #   Pillow>=12.2.0            fixes CVE-2026-40192, CVE-2026-42311
-#   python-multipart>=0.0.27  fixes CVE-2026-24486, CVE-2026-42561
+#   python-multipart>=0.0.30  fixes CVE-2026-24486, CVE-2026-42561, CVE-2026-53539
 #   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
 #   litellm==1.84.10          fixes CVE-2026-40217, CVE-2026-49468 and bounds version drift
 RUN apk add --no-cache curl jq python3 py3-pip ffmpeg \
@@ -38,8 +38,9 @@ RUN apk add --no-cache curl jq python3 py3-pip ffmpeg \
          "tornado==6.5.6" \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
-         "python-multipart>=0.0.27" \
-         "urllib3>=2.7.0"
+         "python-multipart>=0.0.30" \
+         "urllib3>=2.7.0" \
+    && rm -rf /root/.cache
 
 # Overlay reviewed fixes from immutable fork commits onto the pinned package.
 RUN tmpdir="$(mktemp -d)" \
