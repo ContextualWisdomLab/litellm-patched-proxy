@@ -71,21 +71,21 @@ jobs:
 
           psql_exec <<'SQL'
           CREATE TABLE public."LiteLLM_HealthCheckTable" (
-              id bigint PRIMARY KEY,
+              health_check_id text PRIMARY KEY,
               model_id text,
               model_name text,
               checked_at timestamptz,
               status text
           );
           CREATE TABLE public."LiteLLM_HealthCheckTableIndexCollision" (
-              id bigint PRIMARY KEY,
+              health_check_id text PRIMARY KEY,
               model_id text,
               model_name text,
               checked_at timestamptz
           );
           CREATE INDEX "LiteLLM_HealthCheckTable_latest_model_idx"
           ON public."LiteLLM_HealthCheckTableIndexCollision"
-              (model_id, model_name, checked_at DESC, id DESC);
+              (model_id, model_name, checked_at DESC, health_check_id DESC);
           SQL
 
           if psql_exec < ops/health_check_history_maintenance.sql > /tmp/latest-owner.log 2>&1; then
@@ -98,7 +98,7 @@ jobs:
           psql_exec <<'SQL'
           DROP INDEX public."LiteLLM_HealthCheckTable_latest_model_idx";
           CREATE INDEX "LiteLLM_HealthCheckTable_retention_idx"
-          ON public."LiteLLM_HealthCheckTableIndexCollision" (checked_at, id);
+          ON public."LiteLLM_HealthCheckTableIndexCollision" (checked_at, health_check_id);
           SQL
 
           if psql_exec < ops/health_check_history_maintenance.sql > /tmp/retention-owner.log 2>&1; then
@@ -140,10 +140,10 @@ jobs:
           psql_exec <<'SQL'
           DROP INDEX public."LiteLLM_HealthCheckTable_latest_model_idx";
           CREATE INDEX "LiteLLM_HealthCheckTable_latest_model_idx"
-          ON public."LiteLLM_HealthCheckTable" (model_id, checked_at DESC, id DESC);
+          ON public."LiteLLM_HealthCheckTable" (model_id, checked_at DESC, health_check_id DESC);
           DROP INDEX public."LiteLLM_HealthCheckTable_retention_idx";
           CREATE INDEX "LiteLLM_HealthCheckTable_retention_idx"
-          ON public."LiteLLM_HealthCheckTable" (id, checked_at);
+          ON public."LiteLLM_HealthCheckTable" (health_check_id, checked_at);
           SQL
           BAD_LATEST_OID=$(latest_oid)
           BAD_RETENTION_OID=$(retention_oid)

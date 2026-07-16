@@ -65,7 +65,7 @@ WITH latest_index AS (
               ON a.attrelid = i.indrelid
              AND a.attnum = k.attnum
             WHERE k.ordinality <= i.indnkeyatts
-        ) = ARRAY['model_id', 'model_name', 'checked_at', 'id']
+        ) = ARRAY['model_id', 'model_name', 'checked_at', 'health_check_id']
         AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'asc'), false)
         AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'nulls_last'), false)
         AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'asc'), false)
@@ -101,7 +101,7 @@ WITH latest_index AS (
               ON a.attrelid = i.indrelid
              AND a.attnum = k.attnum
             WHERE k.ordinality <= i.indnkeyatts
-        ) = ARRAY['model_id', 'model_name', 'checked_at', 'id']
+        ) = ARRAY['model_id', 'model_name', 'checked_at', 'health_check_id']
         AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'asc'), false)
         AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'nulls_last'), false)
         AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'asc'), false)
@@ -118,7 +118,7 @@ WITH latest_index AS (
 )
 SELECT $sql$
 CREATE INDEX CONCURRENTLY "LiteLLM_HealthCheckTable_latest_model_idx"
-ON "LiteLLM_HealthCheckTable" (model_id, model_name, checked_at DESC, id DESC);
+ON "LiteLLM_HealthCheckTable" (model_id, model_name, checked_at DESC, health_check_id DESC);
 $sql$
 WHERE NOT EXISTS (
     SELECT 1
@@ -145,7 +145,7 @@ WITH retention_index AS (
               ON a.attrelid = i.indrelid
              AND a.attnum = k.attnum
             WHERE k.ordinality <= i.indnkeyatts
-        ) = ARRAY['checked_at', 'id']
+        ) = ARRAY['checked_at', 'health_check_id']
         AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'asc'), false)
         AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'nulls_last'), false)
         AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'asc'), false)
@@ -177,7 +177,7 @@ WITH retention_index AS (
               ON a.attrelid = i.indrelid
              AND a.attnum = k.attnum
             WHERE k.ordinality <= i.indnkeyatts
-        ) = ARRAY['checked_at', 'id']
+        ) = ARRAY['checked_at', 'health_check_id']
         AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'asc'), false)
         AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'nulls_last'), false)
         AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'asc'), false)
@@ -190,7 +190,7 @@ WITH retention_index AS (
 )
 SELECT $sql$
 CREATE INDEX CONCURRENTLY "LiteLLM_HealthCheckTable_retention_idx"
-ON "LiteLLM_HealthCheckTable" (checked_at, id);
+ON "LiteLLM_HealthCheckTable" (checked_at, health_check_id);
 $sql$
 WHERE NOT EXISTS (
     SELECT 1
@@ -212,15 +212,15 @@ WHERE NOT EXISTS (
 
 -- Retention template: uncomment and run one batch at a time only after approval.
 -- WITH expired AS (
---     SELECT id
+--     SELECT health_check_id
 --     FROM "LiteLLM_HealthCheckTable"
 --     WHERE checked_at < now() - interval '90 days'
---     ORDER BY checked_at, id
+--     ORDER BY checked_at, health_check_id
 --     LIMIT 5000
 -- )
 -- DELETE FROM "LiteLLM_HealthCheckTable" AS history
 -- USING expired
--- WHERE history.id = expired.id;
+-- WHERE history.health_check_id = expired.health_check_id;
 
 -- This default verification only plans the query; it does not execute it.
 EXPLAIN (COSTS, VERBOSE)
@@ -230,7 +230,7 @@ SELECT DISTINCT ON (model_id, model_name)
     checked_at,
     status
 FROM "LiteLLM_HealthCheckTable"
-ORDER BY model_id, model_name, checked_at DESC, id DESC;
+ORDER BY model_id, model_name, checked_at DESC, health_check_id DESC;
 
 -- Optional maintenance-window verification with fresh statistics. These lines
 -- execute work and must remain commented until load impact is approved.
@@ -242,4 +242,4 @@ ORDER BY model_id, model_name, checked_at DESC, id DESC;
 --     checked_at,
 --     status
 -- FROM "LiteLLM_HealthCheckTable"
--- ORDER BY model_id, model_name, checked_at DESC, id DESC;
+-- ORDER BY model_id, model_name, checked_at DESC, health_check_id DESC;
