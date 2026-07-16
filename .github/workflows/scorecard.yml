@@ -39,6 +39,21 @@ jobs:
           results_format: sarif
           publish_results: false
 
+      - name: Remove non-comparable branch protection category
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          jq '
+            .runs |= map(
+              select(
+                ((.automationDetails.id // "")
+                  | startswith("supply-chain/branch-protection/")
+                  | not)
+              )
+            )
+          ' results.sarif > results.normalized.sarif
+          mv results.normalized.sarif results.sarif
+          jq -e '(.runs | length) > 0' results.sarif
+
       - name: Attest successful PR Scorecard analysis for current head
         if: github.event_name == 'workflow_dispatch'
         env:

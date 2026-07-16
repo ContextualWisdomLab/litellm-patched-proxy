@@ -20,7 +20,8 @@
 - 비어 있던 CodeQL 행렬에 GitHub Actions 분석 대상을 지정해 job 0개 즉시 실패를 수정했습니다.
 - 저장소 ruleset이 요구하지만 없었던 OSSF Scorecard 검사를 `develop` PR과 push에 추가하고 SARIF를 code scanning에 제출합니다.
 - `develop` 갱신으로 PR merge SHA가 바뀌어도 수동 PR 검증에서 SQL·Trivy·CodeQL 결과를 동일한 head SHA에 귀속시킬 수 있도록 CodeQL Actions 분석 job을 추가했습니다.
-- Trivy가 취약점 0건일 때 생성하는 빈 SARIF에도 심각도 0.0의 규칙과 note attestation을 보강해, GitHub ruleset이 성공한 빈 분석을 “Trivy 결과 없음”으로 오판하지 않도록 했습니다.
+- PR 검증과 `develop` 이미지 발행의 Trivy SARIF category를 `trivy-image`로 통일했습니다. 기본 브랜치와 PR의 분석 구성 키 불일치로 Trivy 체크가 `NEUTRAL`이 되던 문제를 제거하고, 취약점 0건인 SARIF는 가짜 note alert 없이 빈 결과로 보존합니다. 실제 차단은 별도의 JSON CRITICAL/HIGH gate가 담당합니다.
+- `develop` push에서만 생성되어 PR과 비교할 수 없던 Scorecard `supply-chain/branch-protection` SARIF run은 업로드 대상에서 제외합니다. 브랜치 보호는 저장소와 조직 ruleset으로 계속 강제하고, PR과 push 모두에서 생성되는 `local` 및 `online-scm` Scorecard 결과는 유지합니다.
 - Chainguard APK 저장소의 일시적인 패키지 다운로드 거부로 빌드가 실패하지 않도록 add/upgrade를 최대 3회 제한 재시도합니다.
 
 ### 검증 및 배포
