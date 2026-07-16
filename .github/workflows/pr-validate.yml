@@ -10,6 +10,90 @@ env:
   IMAGE_NAME: ghcr.io/seongho-bae/pre-secured-llm-proxy
 
 jobs:
+  sql-maintenance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Verify health-check history maintenance
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+
+          psql_exec() {
+            docker exec -i "$POSTGRES_CONTAINER" \
+              psql -U postgres -v ON_ERROR_STOP=1 "$@"
+          }
+
+          psql_exec <<'SQL'
+          CREATE TABLE public."LiteLLM_HealthCheckTable" (
+              id bigint PRIMARY KEY,
+              model_id text,
+              model_name text,
+              checked_at timestamptz,
+              status text
+          );
+          SQL
+
+          psql_exec < ops/health_check_history_maintenance.sql
+          FIRST_OIDS=$(psql_exec -At <<'SQL'
+              SELECT string_agg(indexrelid::text, ',' ORDER BY indexrelid::regclass::text)
+              FROM pg_index
+              WHERE indexrelid IN (
+                  to_regclass('public."LiteLLM_HealthCheckTable_latest_model_idx"'),
+                  to_regclass('public."LiteLLM_HealthCheckTable_retention_idx"')
+              );
+          SQL
+          )
+
+          psql_exec < ops/health_check_history_maintenance.sql
+          SECOND_OIDS=$(psql_exec -At <<'SQL'
+              SELECT string_agg(indexrelid::text, ',' ORDER BY indexrelid::regclass::text)
+              FROM pg_index
+              WHERE indexrelid IN (
+                  to_regclass('public."LiteLLM_HealthCheckTable_latest_model_idx"'),
+                  to_regclass('public."LiteLLM_HealthCheckTable_retention_idx"')
+              );
+          SQL
+          )
+          test "$FIRST_OIDS" = "$SECOND_OIDS"
+
+          psql_exec <<'SQL'
+          DROP INDEX public."LiteLLM_HealthCheckTable_retention_idx";
+          CREATE INDEX "LiteLLM_HealthCheckTable_retention_idx"
+          ON public."LiteLLM_HealthCheckTable" (id, checked_at);
+          SQL
+          BAD_OID=$(psql_exec -At <<'SQL'
+              SELECT to_regclass('public."LiteLLM_HealthCheckTable_retention_idx"')::oid;
+          SQL
+          )
+
+          psql_exec < ops/health_check_history_maintenance.sql
+          FIXED_OID=$(psql_exec -At <<'SQL'
+              SELECT to_regclass('public."LiteLLM_HealthCheckTable_retention_idx"')::oid;
+          SQL
+          )
+          test "$BAD_OID" != "$FIXED_OID"
+
+          psql_exec < ops/health_check_history_maintenance.sql
+          FINAL_OID=$(psql_exec -At <<'SQL'
+              SELECT to_regclass('public."LiteLLM_HealthCheckTable_retention_idx"')::oid;
+          SQL
+          )
+          test "$FIXED_OID" = "$FINAL_OID"
+
   validate:
     runs-on: ubuntu-latest
     permissions:

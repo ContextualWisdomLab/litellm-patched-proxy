@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
-SET search_path TO public, pg_catalog;
+SET search_path TO pg_catalog, public;
 
 -- Run this file with psql autocommit enabled and without BEGIN/COMMIT.
 -- CREATE/DROP INDEX CONCURRENTLY cannot run inside a transaction block.
@@ -17,60 +17,150 @@ FROM "LiteLLM_HealthCheckTable";
 
 -- Replace only an invalid or mismatched latest-state index. \gexec sends each
 -- generated CONCURRENTLY statement separately, outside a transaction block.
+WITH latest_index AS (
+    SELECT
+        i.indexrelid,
+        i.indisvalid,
+        i.indpred IS NULL
+        AND i.indexprs IS NULL
+        AND i.indnkeyatts = 4
+        AND i.indnatts = 4
+        AND am.amname = 'btree'
+        AND (
+            SELECT array_agg(a.attname::text ORDER BY k.ordinality)
+            FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ordinality)
+            JOIN pg_attribute AS a
+              ON a.attrelid = i.indrelid
+             AND a.attnum = k.attnum
+            WHERE k.ordinality <= i.indnkeyatts
+        ) = ARRAY['model_id', 'model_name', 'checked_at', 'id']
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'asc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'nulls_last'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'asc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'nulls_last'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 3, 'desc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 3, 'nulls_first'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 4, 'desc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 4, 'nulls_first'), false)
+            AS matches_definition
+    FROM pg_index AS i
+    JOIN pg_class AS c ON c.oid = i.indexrelid
+    JOIN pg_am AS am ON am.oid = c.relam
+    WHERE i.indexrelid = to_regclass('public."LiteLLM_HealthCheckTable_latest_model_idx"')
+)
 SELECT format('DROP INDEX CONCURRENTLY %s;', indexrelid::regclass)
-FROM pg_index
-WHERE indexrelid = to_regclass('"LiteLLM_HealthCheckTable_latest_model_idx"')
-  AND (
-      NOT indisvalid
-      OR indpred IS NOT NULL
-      OR indexprs IS NOT NULL
-      OR pg_get_indexdef(indexrelid) NOT LIKE
-          '% USING btree (model_id, model_name, checked_at DESC, id DESC)'
-  )
+FROM latest_index
+WHERE NOT indisvalid OR NOT matches_definition
 \gexec
 
+WITH latest_index AS (
+    SELECT
+        i.indisvalid,
+        i.indpred IS NULL
+        AND i.indexprs IS NULL
+        AND i.indnkeyatts = 4
+        AND i.indnatts = 4
+        AND am.amname = 'btree'
+        AND (
+            SELECT array_agg(a.attname::text ORDER BY k.ordinality)
+            FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ordinality)
+            JOIN pg_attribute AS a
+              ON a.attrelid = i.indrelid
+             AND a.attnum = k.attnum
+            WHERE k.ordinality <= i.indnkeyatts
+        ) = ARRAY['model_id', 'model_name', 'checked_at', 'id']
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'asc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'nulls_last'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'asc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'nulls_last'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 3, 'desc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 3, 'nulls_first'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 4, 'desc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 4, 'nulls_first'), false)
+            AS matches_definition
+    FROM pg_index AS i
+    JOIN pg_class AS c ON c.oid = i.indexrelid
+    JOIN pg_am AS am ON am.oid = c.relam
+    WHERE i.indexrelid = to_regclass('public."LiteLLM_HealthCheckTable_latest_model_idx"')
+)
 SELECT $sql$
 CREATE INDEX CONCURRENTLY "LiteLLM_HealthCheckTable_latest_model_idx"
 ON "LiteLLM_HealthCheckTable" (model_id, model_name, checked_at DESC, id DESC);
 $sql$
 WHERE NOT EXISTS (
     SELECT 1
-    FROM pg_index
-    WHERE indexrelid = to_regclass('"LiteLLM_HealthCheckTable_latest_model_idx"')
-      AND indisvalid
-      AND indpred IS NULL
-      AND indexprs IS NULL
-      AND pg_get_indexdef(indexrelid) LIKE
-          '% USING btree (model_id, model_name, checked_at DESC, id DESC)'
+    FROM latest_index
+    WHERE indisvalid AND matches_definition
 )
 \gexec
 
 -- Apply the same validity and definition checks to the retention index.
+WITH retention_index AS (
+    SELECT
+        i.indexrelid,
+        i.indisvalid,
+        i.indpred IS NULL
+        AND i.indexprs IS NULL
+        AND i.indnkeyatts = 2
+        AND i.indnatts = 2
+        AND am.amname = 'btree'
+        AND (
+            SELECT array_agg(a.attname::text ORDER BY k.ordinality)
+            FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ordinality)
+            JOIN pg_attribute AS a
+              ON a.attrelid = i.indrelid
+             AND a.attnum = k.attnum
+            WHERE k.ordinality <= i.indnkeyatts
+        ) = ARRAY['checked_at', 'id']
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'asc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'nulls_last'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'asc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'nulls_last'), false)
+            AS matches_definition
+    FROM pg_index AS i
+    JOIN pg_class AS c ON c.oid = i.indexrelid
+    JOIN pg_am AS am ON am.oid = c.relam
+    WHERE i.indexrelid = to_regclass('public."LiteLLM_HealthCheckTable_retention_idx"')
+)
 SELECT format('DROP INDEX CONCURRENTLY %s;', indexrelid::regclass)
-FROM pg_index
-WHERE indexrelid = to_regclass('"LiteLLM_HealthCheckTable_retention_idx"')
-  AND (
-      NOT indisvalid
-      OR indpred IS NOT NULL
-      OR indexprs IS NOT NULL
-      OR pg_get_indexdef(indexrelid) NOT LIKE
-          '% USING btree (checked_at, id)'
-  )
+FROM retention_index
+WHERE NOT indisvalid OR NOT matches_definition
 \gexec
 
+WITH retention_index AS (
+    SELECT
+        i.indisvalid,
+        i.indpred IS NULL
+        AND i.indexprs IS NULL
+        AND i.indnkeyatts = 2
+        AND i.indnatts = 2
+        AND am.amname = 'btree'
+        AND (
+            SELECT array_agg(a.attname::text ORDER BY k.ordinality)
+            FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ordinality)
+            JOIN pg_attribute AS a
+              ON a.attrelid = i.indrelid
+             AND a.attnum = k.attnum
+            WHERE k.ordinality <= i.indnkeyatts
+        ) = ARRAY['checked_at', 'id']
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'asc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 1, 'nulls_last'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'asc'), false)
+        AND coalesce(pg_index_column_has_property(i.indexrelid, 2, 'nulls_last'), false)
+            AS matches_definition
+    FROM pg_index AS i
+    JOIN pg_class AS c ON c.oid = i.indexrelid
+    JOIN pg_am AS am ON am.oid = c.relam
+    WHERE i.indexrelid = to_regclass('public."LiteLLM_HealthCheckTable_retention_idx"')
+)
 SELECT $sql$
 CREATE INDEX CONCURRENTLY "LiteLLM_HealthCheckTable_retention_idx"
 ON "LiteLLM_HealthCheckTable" (checked_at, id);
 $sql$
 WHERE NOT EXISTS (
     SELECT 1
-    FROM pg_index
-    WHERE indexrelid = to_regclass('"LiteLLM_HealthCheckTable_retention_idx"')
-      AND indisvalid
-      AND indpred IS NULL
-      AND indexprs IS NULL
-      AND pg_get_indexdef(indexrelid) LIKE
-          '% USING btree (checked_at, id)'
+    FROM retention_index
+    WHERE indisvalid AND matches_definition
 )
 \gexec
 
