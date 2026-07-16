@@ -48,11 +48,11 @@ RUN apk_retry() { \
 # Overlay reviewed fixes from immutable fork commits onto the pinned package.
 RUN tmpdir="$(mktemp -d)" \
     && pkg_root="$(/app/.venv/bin/python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
-    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/caching/redis_cache.py" -o "$tmpdir/redis_cache.py" \
-    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/router_strategy/lowest_latency.py" -o "$tmpdir/lowest_latency.py" \
-    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/constants.py" -o "$tmpdir/constants.py" \
-    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/health_check.py" -o "$tmpdir/health_check.py" \
-    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/proxy_server.py" -o "$tmpdir/proxy_server.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/caching/redis_cache.py" -o "$tmpdir/redis_cache.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/router_strategy/lowest_latency.py" -o "$tmpdir/lowest_latency.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/constants.py" -o "$tmpdir/constants.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/health_check.py" -o "$tmpdir/health_check.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/proxy_server.py" -o "$tmpdir/proxy_server.py" \
     && printf '%s  %s\n' "$LITELLM_REDIS_CACHE_SHA256" "$tmpdir/redis_cache.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_LOWEST_LATENCY_SHA256" "$tmpdir/lowest_latency.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_CONSTANTS_SHA256" "$tmpdir/constants.py" | sha256sum -c - \
@@ -70,9 +70,9 @@ RUN tmpdir="$(mktemp -d)" \
 
 # Upgrade every picomatch and sigstore installation found in the base image.
 # Download each verified tarball once to avoid O(N) network requests in loops.
-RUN curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /tmp/picomatch.tgz \
+RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /tmp/picomatch.tgz \
     && echo "$PICOMATCH_SHA256  /tmp/picomatch.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz; exit 1; } \
-    && curl -fsSL "https://registry.npmjs.org/sigstore/-/sigstore-4.1.1.tgz" -o /tmp/sigstore.tgz \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.npmjs.org/sigstore/-/sigstore-4.1.1.tgz" -o /tmp/sigstore.tgz \
     && echo "$SIGSTORE_SHA256  /tmp/sigstore.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz; exit 1; } \
     && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/picomatch" -type d 2>/dev/null \
     | while IFS= read -r d; do \
