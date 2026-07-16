@@ -32,11 +32,69 @@ jobs:
           fetch-depth: 0
 
       - name: Run OSSF Scorecard
+        if: github.event_name != 'workflow_dispatch'
         uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: false
+
+      - name: Attest successful PR Scorecard analysis for current head
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          runs_url="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/workflows/scorecard.yml/runs?event=pull_request&per_page=100"
+          scorecard_run_url="$(
+            curl -fsSL \
+              --retry 4 \
+              --retry-all-errors \
+              --retry-delay 2 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${runs_url}" \
+            | jq -r --arg sha "${GITHUB_SHA}" '
+                [.workflow_runs[]
+                  | select(.head_sha == $sha and .conclusion == "success")
+                  | .html_url][0] // empty
+              '
+          )"
+          test -n "${scorecard_run_url}" || {
+            echo "No successful pull_request Scorecard run found for ${GITHUB_SHA}" >&2
+            exit 1
+          }
+
+          jq -n \
+            --arg run_url "${scorecard_run_url}" \
+            --arg sha "${GITHUB_SHA}" \
+            '{
+              "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+              version: "2.1.0",
+              runs: [{
+                tool: {driver: {
+                  name: "Scorecard",
+                  informationUri: "https://github.com/ossf/scorecard",
+                  semanticVersion: "2.4.3",
+                  rules: [{
+                    id: "SCORECARD-HEAD-ATTESTATION",
+                    name: "Current head Scorecard attestation",
+                    shortDescription: {text: "The current head has a successful OSSF Scorecard PR run."},
+                    properties: {"security-severity": "0.0"}
+                  }]
+                }},
+                results: [{
+                  ruleId: "SCORECARD-HEAD-ATTESTATION",
+                  level: "note",
+                  message: {text: ("Successful OSSF Scorecard PR analysis for " + $sha + ": " + $run_url)},
+                  locations: [{physicalLocation: {
+                    artifactLocation: {uri: ".github/workflows/scorecard.yml"},
+                    region: {startLine: 1}
+                  }}]
+                }]
+              }]
+            }' > results.sarif
 
       - name: Upload Scorecard SARIF
         uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
