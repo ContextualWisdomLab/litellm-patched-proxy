@@ -7,6 +7,13 @@ ARG LITELLM_REDIS_CACHE_URL=https://raw.githubusercontent.com/Seongho-Bae/litell
 ARG LITELLM_REDIS_CACHE_SHA256=0fabfb741e3a482b002d70cbf59c0627239b59d0ba08a0300c06f9d049f09c81
 ARG LITELLM_LOWEST_LATENCY_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/661948eb340aa7661a4203205154cf22106077df/litellm/router_strategy/lowest_latency.py
 ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a2520815da12c8e46d448
+ARG LITELLM_HEALTH_PATCH_COMMIT=7cc184765829083ce18159ed75bcfebae7a9dd46
+ARG LITELLM_CONSTANTS_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/7cc184765829083ce18159ed75bcfebae7a9dd46/litellm/constants.py
+ARG LITELLM_CONSTANTS_SHA256=5166eb430f6b269ef22fa988ddaad011641176c4124bd9fb94e54bd98655a63d
+ARG LITELLM_HEALTH_CHECK_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/7cc184765829083ce18159ed75bcfebae7a9dd46/litellm/proxy/health_check.py
+ARG LITELLM_HEALTH_CHECK_SHA256=b9e91c702976df74ee09cc3fc0a5a398c5d8c30e2c4a78b821a68a0b3ab8b966
+ARG LITELLM_PROXY_SERVER_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/7cc184765829083ce18159ed75bcfebae7a9dd46/litellm/proxy/proxy_server.py
+ARG LITELLM_PROXY_SERVER_SHA256=1cbb785ff493803c7844f6ca24146fa3bed391bb37bee6b66e293c444cdbec4e
 ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e578571c
 
 # Install OS packages, keep pinned functional deps, and upgrade Python packages
@@ -15,28 +22,39 @@ ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e57
 #   Pillow>=12.2.0            fixes CVE-2026-40192, CVE-2026-42311
 #   python-multipart>=0.0.27  fixes CVE-2026-24486, CVE-2026-42561
 #   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
-#   litellm>=1.83.10          fixes CVE-2026-40217
+#   litellm==1.83.14          fixes CVE-2026-40217 and bounds version drift
 RUN apk update \
     && apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache python-3.13 python-3.13-base py3-pip-wheel py3.13-pip py3.13-pip-base \
     && python3 -m pip install --no-cache-dir "uv==0.11.7" "hypercorn==0.18.0" \
     && python3 -m pip install --no-cache-dir \
-         "litellm>=1.83.10" \
+         "litellm==1.83.14" \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
          "python-multipart>=0.0.27" \
          "urllib3>=2.7.0"
 
-# Overlay the Redis timedelta serialization fix from Seongho-Bae/litellm PR #7
-# onto the pinned upstream image without changing the base digest.
+# Overlay reviewed fixes from immutable fork commits onto the pinned package.
 RUN tmpdir="$(mktemp -d)" \
     && pkg_root="$(python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
     && curl -fsSL "$LITELLM_REDIS_CACHE_URL" -o "$tmpdir/redis_cache.py" \
     && curl -fsSL "$LITELLM_LOWEST_LATENCY_URL" -o "$tmpdir/lowest_latency.py" \
+    && curl -fsSL "$LITELLM_CONSTANTS_URL" -o "$tmpdir/constants.py" \
+    && curl -fsSL "$LITELLM_HEALTH_CHECK_URL" -o "$tmpdir/health_check.py" \
+    && curl -fsSL "$LITELLM_PROXY_SERVER_URL" -o "$tmpdir/proxy_server.py" \
     && printf '%s  %s\n' "$LITELLM_REDIS_CACHE_SHA256" "$tmpdir/redis_cache.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_LOWEST_LATENCY_SHA256" "$tmpdir/lowest_latency.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_CONSTANTS_SHA256" "$tmpdir/constants.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_HEALTH_CHECK_SHA256" "$tmpdir/health_check.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_PROXY_SERVER_SHA256" "$tmpdir/proxy_server.py" | sha256sum -c - \
     && install -m 0644 "$tmpdir/redis_cache.py" "$pkg_root/caching/redis_cache.py" \
     && install -m 0644 "$tmpdir/lowest_latency.py" "$pkg_root/router_strategy/lowest_latency.py" \
+    && install -m 0644 "$tmpdir/constants.py" "$pkg_root/constants.py" \
+    && install -m 0644 "$tmpdir/health_check.py" "$pkg_root/proxy/health_check.py" \
+    && install -m 0644 "$tmpdir/proxy_server.py" "$pkg_root/proxy/proxy_server.py" \
+    && python3 -c 'from importlib.metadata import version; assert version("litellm") == "1.83.14"' \
+    && grep -Fq 'DEFAULT_HEALTH_CHECK_CONCURRENCY' "$pkg_root/constants.py" \
+    && grep -Fq 'background_health_check_cycle_start' "$pkg_root/proxy/proxy_server.py" \
     && rm -rf "$tmpdir"
 
 # Upgrade every picomatch installation found in the base image to 4.0.4 to fix
