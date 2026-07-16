@@ -77,6 +77,40 @@ jobs:
               checked_at timestamptz,
               status text
           );
+          CREATE TABLE public."LiteLLM_HealthCheckTableIndexCollision" (
+              id bigint PRIMARY KEY,
+              model_id text,
+              model_name text,
+              checked_at timestamptz
+          );
+          CREATE INDEX "LiteLLM_HealthCheckTable_latest_model_idx"
+          ON public."LiteLLM_HealthCheckTableIndexCollision"
+              (model_id, model_name, checked_at DESC, id DESC);
+          SQL
+
+          if psql_exec < ops/health_check_history_maintenance.sql > /tmp/latest-owner.log 2>&1; then
+            echo "maintenance unexpectedly accepted a latest index owned by another table" >&2
+            exit 1
+          fi
+          grep -Fq 'LiteLLM_HealthCheckTable_latest_model_idx' /tmp/latest-owner.log
+          grep -Fq 'refusing to drop it' /tmp/latest-owner.log
+
+          psql_exec <<'SQL'
+          DROP INDEX public."LiteLLM_HealthCheckTable_latest_model_idx";
+          CREATE INDEX "LiteLLM_HealthCheckTable_retention_idx"
+          ON public."LiteLLM_HealthCheckTableIndexCollision" (checked_at, id);
+          SQL
+
+          if psql_exec < ops/health_check_history_maintenance.sql > /tmp/retention-owner.log 2>&1; then
+            echo "maintenance unexpectedly accepted a retention index owned by another table" >&2
+            exit 1
+          fi
+          grep -Fq 'LiteLLM_HealthCheckTable_retention_idx' /tmp/retention-owner.log
+          grep -Fq 'refusing to drop it' /tmp/retention-owner.log
+
+          psql_exec <<'SQL'
+          DROP INDEX public."LiteLLM_HealthCheckTable_retention_idx";
+          DROP TABLE public."LiteLLM_HealthCheckTableIndexCollision";
           SQL
 
           latest_oid() {

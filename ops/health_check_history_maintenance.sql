@@ -6,10 +6,32 @@ SET search_path TO pg_catalog, public;
 -- CREATE/DROP INDEX CONCURRENTLY cannot run inside a transaction block.
 
 DO $preflight$
+DECLARE
+    target_table_oid regclass := to_regclass('public."LiteLLM_HealthCheckTable"');
+    candidate_index_oid regclass;
+    index_table_oid oid;
 BEGIN
-    IF to_regclass('public."LiteLLM_HealthCheckTable"') IS NULL THEN
+    IF target_table_oid IS NULL THEN
         RAISE EXCEPTION 'required table public."LiteLLM_HealthCheckTable" does not exist';
     END IF;
+
+    FOREACH candidate_index_oid IN ARRAY ARRAY[
+        to_regclass('public."LiteLLM_HealthCheckTable_latest_model_idx"'),
+        to_regclass('public."LiteLLM_HealthCheckTable_retention_idx"')
+    ] LOOP
+        CONTINUE WHEN candidate_index_oid IS NULL;
+
+        SELECT i.indrelid
+        INTO index_table_oid
+        FROM pg_index AS i
+        WHERE i.indexrelid = candidate_index_oid;
+
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'relation % exists but is not an index', candidate_index_oid;
+        ELSIF index_table_oid <> target_table_oid::oid THEN
+            RAISE EXCEPTION 'index % is not owned by public."LiteLLM_HealthCheckTable"; refusing to drop it', candidate_index_oid;
+        END IF;
+    END LOOP;
 END
 $preflight$;
 
@@ -32,6 +54,7 @@ WITH latest_index AS (
         i.indisvalid,
         i.indpred IS NULL
         AND i.indexprs IS NULL
+        AND i.indrelid = to_regclass('public."LiteLLM_HealthCheckTable"')
         AND i.indnkeyatts = 4
         AND i.indnatts = 4
         AND am.amname = 'btree'
@@ -67,6 +90,7 @@ WITH latest_index AS (
         i.indisvalid,
         i.indpred IS NULL
         AND i.indexprs IS NULL
+        AND i.indrelid = to_regclass('public."LiteLLM_HealthCheckTable"')
         AND i.indnkeyatts = 4
         AND i.indnatts = 4
         AND am.amname = 'btree'
@@ -110,6 +134,7 @@ WITH retention_index AS (
         i.indisvalid,
         i.indpred IS NULL
         AND i.indexprs IS NULL
+        AND i.indrelid = to_regclass('public."LiteLLM_HealthCheckTable"')
         AND i.indnkeyatts = 2
         AND i.indnatts = 2
         AND am.amname = 'btree'
@@ -141,6 +166,7 @@ WITH retention_index AS (
         i.indisvalid,
         i.indpred IS NULL
         AND i.indexprs IS NULL
+        AND i.indrelid = to_regclass('public."LiteLLM_HealthCheckTable"')
         AND i.indnkeyatts = 2
         AND i.indnatts = 2
         AND am.amname = 'btree'
