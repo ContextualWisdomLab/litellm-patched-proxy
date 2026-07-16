@@ -3,16 +3,11 @@ FROM ghcr.io/berriai/litellm:v1.83.7-stable@sha256:af0152ca6dfb6703b35c0d4899eff
 ENV PIP_ROOT_USER_ACTION=ignore
 
 ARG LITELLM_PATCH_COMMIT=661948eb340aa7661a4203205154cf22106077df
-ARG LITELLM_REDIS_CACHE_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/661948eb340aa7661a4203205154cf22106077df/litellm/caching/redis_cache.py
 ARG LITELLM_REDIS_CACHE_SHA256=0fabfb741e3a482b002d70cbf59c0627239b59d0ba08a0300c06f9d049f09c81
-ARG LITELLM_LOWEST_LATENCY_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/661948eb340aa7661a4203205154cf22106077df/litellm/router_strategy/lowest_latency.py
 ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a2520815da12c8e46d448
 ARG LITELLM_HEALTH_PATCH_COMMIT=1bf89fc4649402e1f5c67a189db725adbaf3f515
-ARG LITELLM_CONSTANTS_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/1bf89fc4649402e1f5c67a189db725adbaf3f515/litellm/constants.py
 ARG LITELLM_CONSTANTS_SHA256=771612640a5d4857ed5548abed8f4f4fd0b7d5ff710cb9e9a29dd7e22020aab1
-ARG LITELLM_HEALTH_CHECK_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/1bf89fc4649402e1f5c67a189db725adbaf3f515/litellm/proxy/health_check.py
 ARG LITELLM_HEALTH_CHECK_SHA256=3ebc961d09f087f3b0b507dcb529db65abbcf0f17f849fe24bcb78d3607fed67
-ARG LITELLM_PROXY_SERVER_URL=https://raw.githubusercontent.com/Seongho-Bae/litellm/1bf89fc4649402e1f5c67a189db725adbaf3f515/litellm/proxy/proxy_server.py
 ARG LITELLM_PROXY_SERVER_SHA256=dfa8495a62758b9b1269a2d2a902b44d51ed764ac008a30480ee5eb4a1a53657
 ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e578571c
 ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a140928a0
@@ -24,8 +19,7 @@ ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a1409
 #   python-multipart>=0.0.27  fixes CVE-2026-24486, CVE-2026-42561
 #   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
 #   litellm==1.84.10          fixes CVE-2026-40217, CVE-2026-49468 and bounds version drift
-RUN apk update \
-    && apk add --no-cache curl jq python3 py3-pip ffmpeg \
+RUN apk add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk upgrade --no-cache \
     && apk add --no-cache --upgrade \
          "busybox=1.37.0-r61" \
@@ -50,11 +44,11 @@ RUN apk update \
 # Overlay reviewed fixes from immutable fork commits onto the pinned package.
 RUN tmpdir="$(mktemp -d)" \
     && pkg_root="$(python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
-    && curl -fsSL "$LITELLM_REDIS_CACHE_URL" -o "$tmpdir/redis_cache.py" \
-    && curl -fsSL "$LITELLM_LOWEST_LATENCY_URL" -o "$tmpdir/lowest_latency.py" \
-    && curl -fsSL "$LITELLM_CONSTANTS_URL" -o "$tmpdir/constants.py" \
-    && curl -fsSL "$LITELLM_HEALTH_CHECK_URL" -o "$tmpdir/health_check.py" \
-    && curl -fsSL "$LITELLM_PROXY_SERVER_URL" -o "$tmpdir/proxy_server.py" \
+    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/caching/redis_cache.py" -o "$tmpdir/redis_cache.py" \
+    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/router_strategy/lowest_latency.py" -o "$tmpdir/lowest_latency.py" \
+    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/constants.py" -o "$tmpdir/constants.py" \
+    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/health_check.py" -o "$tmpdir/health_check.py" \
+    && curl -fsSL "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/proxy_server.py" -o "$tmpdir/proxy_server.py" \
     && printf '%s  %s\n' "$LITELLM_REDIS_CACHE_SHA256" "$tmpdir/redis_cache.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_LOWEST_LATENCY_SHA256" "$tmpdir/lowest_latency.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_CONSTANTS_SHA256" "$tmpdir/constants.py" | sha256sum -c - \

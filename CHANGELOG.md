@@ -16,7 +16,7 @@
 - 포크에서 가져오는 파일은 커밋 SHA와 파일별 SHA-256을 모두 검증한 뒤 설치합니다.
 - 부분 OS 업그레이드로 `pyexpat`와 `libexpat1`의 ABI가 어긋나던 경로를 제거하고, 설치된 OS 패키지를 의존성 단위로 함께 업그레이드합니다. 기반 이미지에 고정된 `busybox`, `libcrypto3`, `libssl3`는 수정 버전으로 명시 교체합니다.
 - Trivy가 검출한 Python 의존성 7종과 `uv`, 중복 npm `sigstore` 설치본을 수정 버전으로 고정했습니다.
-- 최신 모델 상태 조회용 `(model_id, model_name, checked_at DESC)` 온라인 복합 인덱스와 5,000행 단위 보존 정리 템플릿을 추가했습니다. 삭제문은 승인 전 실행되지 않도록 주석 처리했습니다.
+- 최신 모델 상태 조회용 `(model_id, model_name, checked_at DESC, id DESC)` 인덱스, 보존 배치용 `(checked_at, id)` 인덱스와 5,000행 단위 정리 템플릿을 추가했습니다. INVALID 또는 오정의 인덱스만 온라인으로 교체하고, 삭제문은 승인 전 실행되지 않도록 주석 처리했습니다.
 
 ### 검증 및 배포
 
