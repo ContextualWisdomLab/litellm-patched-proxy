@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
 
+SET search_path TO public, pg_catalog;
+
 -- Run this file with psql autocommit enabled and without BEGIN/COMMIT.
 -- CREATE/DROP INDEX CONCURRENTLY cannot run inside a transaction block.
 
