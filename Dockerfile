@@ -26,8 +26,8 @@ RUN apk add --no-cache curl jq python3 py3-pip ffmpeg \
          "libcrypto3=3.6.3-r3" \
          "libssl3=3.6.3-r3" \
          "openssl=3.6.3-r3" \
-    && python3 -m pip install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
-    && python3 -m pip install --no-cache-dir \
+    && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
+    && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir \
          "litellm==1.84.10" \
          "fastapi==0.139.2" \
          "starlette==1.3.1" \
