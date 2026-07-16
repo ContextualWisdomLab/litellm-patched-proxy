@@ -9,7 +9,157 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   IMAGE_NAME: ghcr.io/seongho-bae/pre-secured-llm-proxy
 
+permissions:
+  contents: read
+
 jobs:
+  codeql-actions:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@b1722c1245f90604c2c348f9d1624af97ea8fc6e
+        with:
+          languages: actions
+          build-mode: none
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@b1722c1245f90604c2c348f9d1624af97ea8fc6e
+        with:
+          category: /language:actions
+
+  sql-maintenance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Verify health-check history maintenance
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+
+          psql_exec() {
+            docker exec -i "$POSTGRES_CONTAINER" \
+              psql -U postgres -v ON_ERROR_STOP=1 "$@"
+          }
+
+          if psql_exec < ops/health_check_history_maintenance.sql > /tmp/missing-table.log 2>&1; then
+            echo "maintenance unexpectedly succeeded without the required table" >&2
+            exit 1
+          fi
+          grep -Fq 'required table public."LiteLLM_HealthCheckTable" does not exist' /tmp/missing-table.log
+
+          psql_exec <<'SQL'
+          CREATE TABLE public."LiteLLM_HealthCheckTable" (
+              id bigint PRIMARY KEY,
+              model_id text,
+              model_name text,
+              checked_at timestamptz,
+              status text
+          );
+          CREATE TABLE public."LiteLLM_HealthCheckTableIndexCollision" (
+              id bigint PRIMARY KEY,
+              model_id text,
+              model_name text,
+              checked_at timestamptz
+          );
+          CREATE INDEX "LiteLLM_HealthCheckTable_latest_model_idx"
+          ON public."LiteLLM_HealthCheckTableIndexCollision"
+              (model_id, model_name, checked_at DESC, id DESC);
+          SQL
+
+          if psql_exec < ops/health_check_history_maintenance.sql > /tmp/latest-owner.log 2>&1; then
+            echo "maintenance unexpectedly accepted a latest index owned by another table" >&2
+            exit 1
+          fi
+          grep -Fq 'LiteLLM_HealthCheckTable_latest_model_idx' /tmp/latest-owner.log
+          grep -Fq 'refusing to drop it' /tmp/latest-owner.log
+
+          psql_exec <<'SQL'
+          DROP INDEX public."LiteLLM_HealthCheckTable_latest_model_idx";
+          CREATE INDEX "LiteLLM_HealthCheckTable_retention_idx"
+          ON public."LiteLLM_HealthCheckTableIndexCollision" (checked_at, id);
+          SQL
+
+          if psql_exec < ops/health_check_history_maintenance.sql > /tmp/retention-owner.log 2>&1; then
+            echo "maintenance unexpectedly accepted a retention index owned by another table" >&2
+            exit 1
+          fi
+          grep -Fq 'LiteLLM_HealthCheckTable_retention_idx' /tmp/retention-owner.log
+          grep -Fq 'refusing to drop it' /tmp/retention-owner.log
+
+          psql_exec <<'SQL'
+          DROP INDEX public."LiteLLM_HealthCheckTable_retention_idx";
+          DROP TABLE public."LiteLLM_HealthCheckTableIndexCollision";
+          SQL
+
+          latest_oid() {
+            psql_exec -At <<'SQL'
+            SELECT to_regclass('public."LiteLLM_HealthCheckTable_latest_model_idx"')::oid;
+          SQL
+          }
+
+          retention_oid() {
+            psql_exec -At <<'SQL'
+            SELECT to_regclass('public."LiteLLM_HealthCheckTable_retention_idx"')::oid;
+          SQL
+          }
+
+          psql_exec < ops/health_check_history_maintenance.sql
+          FIRST_LATEST_OID=$(latest_oid)
+          FIRST_RETENTION_OID=$(retention_oid)
+          test -n "$FIRST_LATEST_OID"
+          test -n "$FIRST_RETENTION_OID"
+
+          psql_exec < ops/health_check_history_maintenance.sql
+          SECOND_LATEST_OID=$(latest_oid)
+          SECOND_RETENTION_OID=$(retention_oid)
+          test "$FIRST_LATEST_OID" = "$SECOND_LATEST_OID"
+          test "$FIRST_RETENTION_OID" = "$SECOND_RETENTION_OID"
+
+          psql_exec <<'SQL'
+          DROP INDEX public."LiteLLM_HealthCheckTable_latest_model_idx";
+          CREATE INDEX "LiteLLM_HealthCheckTable_latest_model_idx"
+          ON public."LiteLLM_HealthCheckTable" (model_id, checked_at DESC, id DESC);
+          DROP INDEX public."LiteLLM_HealthCheckTable_retention_idx";
+          CREATE INDEX "LiteLLM_HealthCheckTable_retention_idx"
+          ON public."LiteLLM_HealthCheckTable" (id, checked_at);
+          SQL
+          BAD_LATEST_OID=$(latest_oid)
+          BAD_RETENTION_OID=$(retention_oid)
+
+          psql_exec < ops/health_check_history_maintenance.sql
+          FIXED_LATEST_OID=$(latest_oid)
+          FIXED_RETENTION_OID=$(retention_oid)
+          test "$BAD_LATEST_OID" != "$FIXED_LATEST_OID"
+          test "$BAD_RETENTION_OID" != "$FIXED_RETENTION_OID"
+
+          psql_exec < ops/health_check_history_maintenance.sql
+          FINAL_LATEST_OID=$(latest_oid)
+          FINAL_RETENTION_OID=$(retention_oid)
+          test "$FIXED_LATEST_OID" = "$FINAL_LATEST_OID"
+          test "$FIXED_RETENTION_OID" = "$FINAL_RETENTION_OID"
+
   validate:
     runs-on: ubuntu-latest
     permissions:
@@ -43,6 +193,53 @@ jobs:
             --format sarif \
             --output trivy-results.sarif \
             local/pre-secured-llm-proxy:pr-${{ github.sha }}
+
+      - name: Normalize empty Trivy SARIF
+        run: |
+          jq '
+            if ((.runs[0].tool.driver.rules // []) | length) == 0 then
+              .runs[0].tool.driver.rules = [{
+                "id": "TRIVY-NO-CRITICAL-HIGH-FINDINGS",
+                "name": "NoCriticalHighFindings",
+                "shortDescription": {
+                  "text": "No fixed CRITICAL or HIGH vulnerabilities found"
+                },
+                "fullDescription": {
+                  "text": "Trivy completed successfully and found no fixed CRITICAL or HIGH vulnerabilities."
+                },
+                "helpUri": "https://trivy.dev/docs/latest/",
+                "defaultConfiguration": {"level": "note"},
+                "properties": {
+                  "security-severity": "0.0",
+                  "tags": ["security", "trivy"]
+                }
+              }] |
+              .runs[0].results = [{
+                "ruleId": "TRIVY-NO-CRITICAL-HIGH-FINDINGS",
+                "level": "note",
+                "message": {
+                  "text": "Trivy found no fixed CRITICAL or HIGH vulnerabilities."
+                },
+                "locations": [{
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": "Dockerfile",
+                      "uriBaseId": "%SRCROOT%"
+                    },
+                    "region": {"startLine": 1}
+                  }
+                }],
+                "properties": {"security-severity": "0.0"}
+              }]
+            else
+              .
+            end
+          ' trivy-results.sarif > trivy-results.normalized.sarif
+          mv trivy-results.normalized.sarif trivy-results.sarif
+          jq -e '
+            (.runs[0].tool.driver.rules | length) > 0 and
+            (.runs[0].results | length) > 0
+          ' trivy-results.sarif
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@b1722c1245f90604c2c348f9d1624af97ea8fc6e
