@@ -67,11 +67,11 @@ RUN curl -fsSL "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /
     && curl -fsSL "https://registry.npmjs.org/sigstore/-/sigstore-4.1.1.tgz" -o /tmp/sigstore.tgz \
     && echo "$SIGSTORE_SHA256  /tmp/sigstore.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz; exit 1; } \
     && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/picomatch" -type d 2>/dev/null \
-    | while read -r d; do \
-        tar -xz -f /tmp/picomatch.tgz --strip-components=1 -C "$d"; \
+    | while IFS= read -r d; do \
+        rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/picomatch.tgz --strip-components=1 -C "$d" || exit 1; \
       done \
     && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/sigstore" -type d 2>/dev/null \
-    | while read -r d; do \
-        tar -xz -f /tmp/sigstore.tgz --strip-components=1 -C "$d"; \
+    | while IFS= read -r d; do \
+        rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/sigstore.tgz --strip-components=1 -C "$d" || exit 1; \
       done \
     && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz
