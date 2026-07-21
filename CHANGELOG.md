@@ -4,8 +4,8 @@
 
 ### 장애 근거
 
-- 2026-07-21 18:39 KST 개발 게이트웨이에서 5분 주기 상태 점검과 함께 LiteLLM CPU가 97%까지 상승했고, 로컬 liveliness가 318ms, readiness가 106ms까지 지연됐습니다.
-- 같은 주기에 `LiteLLM_HealthCheckTable` 전체 행을 반환하는 Prisma 조회가 관측됐고, 외부 liveliness TTFB는 4.336초까지 증가했습니다.
+- 2026-07-21 18:39 KST 개발 게이트웨이에서 5분 주기 상태 점검과 함께 LiteLLM CPU가 97%까지 상승했고, 로컬 `/health/liveliness`가 318ms, `/health/readiness`가 106ms까지 지연됐습니다.
+- 같은 주기에 `LiteLLM_HealthCheckTable` 전체 행을 반환하는 Prisma 조회가 관측됐고, 외부 `/health/liveliness` TTFB는 4.336초까지 증가했습니다.
 - 개발 서버는 아직 2026-04-23 이미지와 LiteLLM `1.83.7`을 실행해, 7월 17일 병합한 DB distinct 조회 수정이 배포되지 않은 상태였습니다.
 - 수정 이미지의 2026-07-20 재검사에서 `mcp 1.26.0`의 HIGH 취약점 3건이 새로 탐지되어 이미지 게시가 보안 게이트에서 차단됐습니다.
 
@@ -24,7 +24,7 @@
 
 ### 롤백
 
-- 개발계 readiness 또는 실제 모델 호출에 회귀가 있으면 현재 digest `sha256:853dee74cff4344180d8b52f2aa4ccf560c383134c836b10e771cb2badde9db7`로 되돌립니다.
+- 개발 환경의 readiness 또는 실제 모델 호출에 회귀가 있으면 현재 digest `sha256:853dee74cff4344180d8b52f2aa4ccf560c383134c836b10e771cb2badde9db7`로 되돌립니다.
 - DB 인덱스는 이미지 롤백 시 유지하며, 보존 삭제는 수행하지 않습니다.
 
 ## 2026-07-17 KST - LiteLLM 백그라운드 상태 점검 부하 완화
