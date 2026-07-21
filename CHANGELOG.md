@@ -24,7 +24,7 @@
 
 ### 롤백
 
-- 개발 환경의 readiness 또는 실제 모델 호출에 회귀가 있으면 현재 digest `sha256:853dee74cff4344180d8b52f2aa4ccf560c383134c836b10e771cb2badde9db7`로 되돌립니다.
+- 개발 환경의 readiness 또는 실제 모델 호출에 회귀가 있으면 직전 배포(롤백 대상) 이미지 digest `sha256:853dee74cff4344180d8b52f2aa4ccf560c383134c836b10e771cb2badde9db7`로 되돌립니다.
 - DB 인덱스는 이미지 롤백 시 유지하며, 보존 삭제는 수행하지 않습니다.
 
 ## 2026-07-17 KST - LiteLLM 백그라운드 상태 점검 부하 완화
