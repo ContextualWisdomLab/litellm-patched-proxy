@@ -15,6 +15,8 @@ ARG LITELLM_PROXY_UTILS_SHA256=9e07c5a4df29cfc7d2fe0a6e896df027323095cf9f074879f
 ARG LITELLM_SCHEMA_SHA256=4929d5d49e09aa6946e167c1bf7afce1408e924aca00b63ec4109e389e1f59df
 ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e578571c
 ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a140928a0
+ARG TAR_SHA256=191644f88c7dbd61121f913231ab328d1fc621f058e8ca334451b17cad85dfae
+ARG BRACE_EXPANSION_SHA256=e6f29666db5a9503146d8fd93a2a492a64694bc819ce158b18c584610f240fba
 
 # Install OS packages, keep pinned functional deps, and upgrade Python packages
 # that carry HIGH vulnerabilities shipped in the base image:
@@ -84,12 +86,16 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
          "$pkg_root/proxy/utils.py" "$pkg_root/proxy/schema.prisma" \
     && rm -rf "$tmpdir"
 
-# Upgrade every picomatch and sigstore installation found in the base image.
+# Upgrade vulnerable Node.js packages in every installation found in the base image.
 # Download each verified tarball once to avoid O(N) network requests in loops.
 RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /tmp/picomatch.tgz \
     && echo "$PICOMATCH_SHA256  /tmp/picomatch.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz; exit 1; } \
     && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.npmjs.org/sigstore/-/sigstore-4.1.1.tgz" -o /tmp/sigstore.tgz \
     && echo "$SIGSTORE_SHA256  /tmp/sigstore.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz; exit 1; } \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.npmjs.org/tar/-/tar-7.5.19.tgz" -o /tmp/tar.tgz \
+    && echo "$TAR_SHA256  /tmp/tar.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz /tmp/tar.tgz; exit 1; } \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.7.tgz" -o /tmp/brace-expansion.tgz \
+    && echo "$BRACE_EXPANSION_SHA256  /tmp/brace-expansion.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz /tmp/tar.tgz /tmp/brace-expansion.tgz; exit 1; } \
     && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/picomatch" -type d 2>/dev/null \
     | while IFS= read -r d; do \
         rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/picomatch.tgz --strip-components=1 -C "$d" || exit 1; \
@@ -98,4 +104,13 @@ RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.np
     | while IFS= read -r d; do \
         rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/sigstore.tgz --strip-components=1 -C "$d" || exit 1; \
       done \
-    && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz
+    && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/tar" -type d 2>/dev/null \
+    | while IFS= read -r d; do \
+        rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/tar.tgz --strip-components=1 -C "$d" || exit 1; \
+      done \
+    && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/brace-expansion" -type d 2>/dev/null \
+    | while IFS= read -r d; do \
+        rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/brace-expansion.tgz --strip-components=1 -C "$d" || exit 1; \
+      done \
+    && node -e 'const expected={"/usr/local/lib/node_modules/tar/package.json":"7.5.19","/usr/local/lib/node_modules/npm/node_modules/tar/package.json":"7.5.19","/usr/local/lib/node_modules/brace-expansion/package.json":"5.0.7","/usr/local/lib/node_modules/npm/node_modules/brace-expansion/package.json":"5.0.7"}; for (const [path, version] of Object.entries(expected)) { if (require(path).version !== version) throw new Error("unexpected version: " + path); }' \
+    && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz /tmp/tar.tgz /tmp/brace-expansion.tgz

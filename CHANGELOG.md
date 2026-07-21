@@ -12,6 +12,7 @@
 ### 변경 사항
 
 - MCP Python SDK를 `1.28.1`로 고정해 `CVE-2026-52869`, `CVE-2026-52870`, `CVE-2026-59950`의 수정 버전을 강제합니다.
+- MCP 수정 뒤 재검사에서 확인된 전역 Node.js 중복 설치본도 모두 교체합니다. `tar`는 `7.5.19`로 올려 `CVE-2026-59873`, `CVE-2026-59874`를 해소하고, `brace-expansion`은 `5.0.7`로 올려 `CVE-2026-13149`를 해소합니다. 각 npm tarball은 SHA-256 검증 뒤 설치하고 네 설치 경로의 최종 버전을 빌드 중 확인합니다.
 - 기존 LiteLLM `1.84.10` 고정과 불변 health-history overlay는 유지합니다. 최신 상태 조회는 DB에서 `(model_id, model_name)`별 한 행만 반환하고 `health_check_id DESC`로 동률을 해소합니다.
 - Trivy CRITICAL/HIGH 게이트를 통과한 새 이미지 digest가 생성되기 전에는 개발 및 운영 배포를 진행하지 않습니다.
 
