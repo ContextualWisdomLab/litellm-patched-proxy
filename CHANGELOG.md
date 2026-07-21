@@ -19,7 +19,7 @@
 
 - PR 이미지 빌드에서 설치된 `mcp` 버전과 health-history overlay 구조를 함께 확인합니다.
 - Trivy 재검사에서 CRITICAL/HIGH 0건을 확인한 불변 digest만 개발 게이트웨이에 먼저 적용합니다.
-- 개발계에서 한 번 이상의 5분 health cycle 동안 로컬/public health, CPU, Prisma 조회 행 수, query-engine PID/포트를 확인한 뒤 운영 노드를 한 대씩 교체합니다.
+- 개발 게이트웨이를 통한 실제 모델 호출 성공을 확인하고, 한 번 이상의 5분 health cycle 동안 로컬/public health, CPU, Prisma 조회 행 수, query-engine PID/포트를 확인한 뒤 운영 노드를 한 대씩 교체합니다.
 
 ### 롤백
 
