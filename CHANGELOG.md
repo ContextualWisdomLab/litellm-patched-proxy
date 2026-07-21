@@ -1,5 +1,31 @@
 # 변경 이력
 
+## 2026-07-21 KST - 상태 점검 조회 수정 이미지 보안 게이트 복구
+
+### 장애 근거
+
+- 2026-07-21 18:39 KST 개발 게이트웨이에서 5분 주기 상태 점검과 함께 LiteLLM CPU가 97%까지 상승했고, 로컬 liveliness가 318ms, readiness가 106ms까지 지연됐습니다.
+- 같은 주기에 `LiteLLM_HealthCheckTable` 전체 행을 반환하는 Prisma 조회가 관측됐고, 외부 liveliness TTFB는 4.336초까지 증가했습니다.
+- 개발 서버는 아직 2026-04-23 이미지와 LiteLLM `1.83.7`을 실행해, 7월 17일 병합한 DB distinct 조회 수정이 배포되지 않은 상태였습니다.
+- 수정 이미지의 2026-07-20 재검사에서 `mcp 1.26.0`의 HIGH 취약점 3건이 새로 탐지되어 이미지 게시가 보안 게이트에서 차단됐습니다.
+
+### 변경 사항
+
+- MCP Python SDK를 `1.28.1`로 고정해 `CVE-2026-52869`, `CVE-2026-52870`, `CVE-2026-59950`의 수정 버전을 강제합니다.
+- 기존 LiteLLM `1.84.10` 고정과 불변 health-history overlay는 유지합니다. 최신 상태 조회는 DB에서 `(model_id, model_name)`별 한 행만 반환하고 `health_check_id DESC`로 동률을 해소합니다.
+- Trivy CRITICAL/HIGH 게이트를 통과한 새 이미지 digest가 생성되기 전에는 개발 및 운영 배포를 진행하지 않습니다.
+
+### 검증 및 배포
+
+- PR 이미지 빌드에서 설치된 `mcp` 버전과 health-history overlay 구조를 함께 확인합니다.
+- Trivy 재검사에서 CRITICAL/HIGH 0건을 확인한 불변 digest만 개발 게이트웨이에 먼저 적용합니다.
+- 개발계에서 한 번 이상의 5분 health cycle 동안 로컬/public health, CPU, Prisma 조회 행 수, query-engine PID/포트를 확인한 뒤 운영 노드를 한 대씩 교체합니다.
+
+### 롤백
+
+- 개발계 readiness 또는 실제 모델 호출에 회귀가 있으면 현재 digest `sha256:853dee74cff4344180d8b52f2aa4ccf560c383134c836b10e771cb2badde9db7`로 되돌립니다.
+- DB 인덱스는 이미지 롤백 시 유지하며, 보존 삭제는 수행하지 않습니다.
+
 ## 2026-07-17 KST - LiteLLM 백그라운드 상태 점검 부하 완화
 
 ### 장애 근거

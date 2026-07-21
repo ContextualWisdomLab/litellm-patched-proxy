@@ -22,6 +22,7 @@ ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a1409
 #   Pillow>=12.2.0            fixes CVE-2026-40192, CVE-2026-42311
 #   python-multipart>=0.0.30  fixes CVE-2026-24486, CVE-2026-42561, CVE-2026-53539
 #   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
+#   mcp==1.28.1               fixes CVE-2026-52869, CVE-2026-52870, CVE-2026-59950
 #   litellm==1.84.10          fixes CVE-2026-40217, CVE-2026-49468 and bounds version drift
 RUN apk_retry() { \
         attempt=1; \
@@ -47,6 +48,8 @@ RUN apk_retry() { \
          "Pillow>=12.2.0" \
          "python-multipart>=0.0.30" \
          "urllib3>=2.7.0" \
+         "mcp==1.28.1" \
+    && /app/.venv/bin/python3 -c 'from importlib.metadata import version; assert version("mcp") == "1.28.1"' \
     && rm -rf /root/.cache
 
 # Overlay reviewed fixes from immutable fork commits onto the pinned package.
