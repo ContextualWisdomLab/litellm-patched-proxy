@@ -112,5 +112,10 @@ RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.np
     | while IFS= read -r d; do \
         rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/brace-expansion.tgz --strip-components=1 -C "$d" || exit 1; \
       done \
-    && node -e 'const fs=require("fs"); const expected={"/usr/local/lib/node_modules/tar/package.json":"7.5.19","/usr/local/lib/node_modules/npm/node_modules/tar/package.json":"7.5.19","/usr/local/lib/node_modules/brace-expansion/package.json":"5.0.7","/usr/local/lib/node_modules/npm/node_modules/brace-expansion/package.json":"5.0.7"}; const present=Object.entries(expected).filter(([path])=>fs.existsSync(path)); for (const name of ["tar","brace-expansion"]) { if (!present.some(([path])=>path.endsWith("/"+name+"/package.json"))) throw new Error("missing package installation: "+name); } for (const [path, version] of present) { const actual=require(path).version; if (actual !== version) throw new Error("unexpected version: "+path+" ("+actual+")"); }' \
-    && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz /tmp/tar.tgz /tmp/brace-expansion.tgz
+    && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/tar" -type d -print0 2>/dev/null > /tmp/tar-paths \
+    && [ -s /tmp/tar-paths ] \
+    && xargs -0 -n 1 node -e 'const path=process.argv[1]+"/package.json"; const actual=require(path).version; if (actual !== "7.5.19") throw new Error("unexpected version: "+path+" ("+actual+")");' < /tmp/tar-paths \
+    && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/brace-expansion" -type d -print0 2>/dev/null > /tmp/brace-paths \
+    && [ -s /tmp/brace-paths ] \
+    && xargs -0 -n 1 node -e 'const path=process.argv[1]+"/package.json"; const actual=require(path).version; if (actual !== "5.0.7") throw new Error("unexpected version: "+path+" ("+actual+")");' < /tmp/brace-paths \
+    && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz /tmp/tar.tgz /tmp/brace-expansion.tgz /tmp/tar-paths /tmp/brace-paths
