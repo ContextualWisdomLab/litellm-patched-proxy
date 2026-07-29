@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the structural contract of the LiteLLM health-history overlay."""
+"""Verify the structural contract of the LiteLLM health overlays."""
 
 from __future__ import annotations
 
@@ -23,6 +23,16 @@ EXPECTED_INDEX_FIELDS = [
     "health_check_id(sort:Desc)",
 ]
 EXPECTED_INDEX_NAME = "LiteLLM_HealthCheckTable_latest_model_idx"
+EXPECTED_WATCHDOG_TOKENS = [
+    "Prisma DB health watchdog probe failed before reconnect.",
+    "db_health_watchdog_probe_timeout",
+    "db_health_watchdog_connection_error",
+    "failure_kind=%s exception_type=%s elapsed_ms=%s",
+    "consecutive_reconnect_failures=%s",
+    "pool_active=%s pool_wait=%s",
+    "pool_busy=%s pool_idle=%s pool_open=%s pool_target=%s",
+    "pool_metrics_error_type=%s",
+]
 
 
 def fail(message: str) -> None:
@@ -90,6 +100,13 @@ def verify_query(path: Path) -> None:
         fail(f"unexpected order fields: {order!r}")
 
 
+def verify_watchdog(path: Path) -> None:
+    source = path.read_text(encoding="utf-8")
+    missing = [token for token in EXPECTED_WATCHDOG_TOKENS if token not in source]
+    if missing:
+        fail(f"watchdog observability tokens are missing: {missing!r}")
+
+
 def verify_schema(path: Path) -> None:
     source = path.read_text(encoding="utf-8")
     model = re.search(
@@ -119,7 +136,9 @@ def verify_schema(path: Path) -> None:
 def main() -> None:
     if len(sys.argv) != 3:
         fail("usage: verify_litellm_health_overlay.py UTILS SCHEMA")
-    verify_query(Path(sys.argv[1]))
+    utils_path = Path(sys.argv[1])
+    verify_query(utils_path)
+    verify_watchdog(utils_path)
     verify_schema(Path(sys.argv[2]))
     print("health overlay structure verified")
 
