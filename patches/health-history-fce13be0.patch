@@ -1,0 +1,119 @@
+diff --git a/litellm/constants.py b/litellm/constants.py
+index 920c63f67b..eb208baa77 100644
+--- a/litellm/constants.py
++++ b/litellm/constants.py
+@@ -1515,6 +1515,7 @@ DAILY_TAG_SPEND_BATCH_MULTIPLIER = 2.3
+ DEFAULT_HEALTH_CHECK_INTERVAL = int(
+     os.getenv("DEFAULT_HEALTH_CHECK_INTERVAL", 300)
+ )  # 5 minutes
++DEFAULT_HEALTH_CHECK_CONCURRENCY = 10
+ DEFAULT_SHARED_HEALTH_CHECK_TTL = int(
+     os.getenv("DEFAULT_SHARED_HEALTH_CHECK_TTL", 300)
+ )  # 5 minutes - TTL for cached health check results
+diff --git a/litellm/proxy/health_check.py b/litellm/proxy/health_check.py
+index 400da9da0d..25b232fa7d 100644
+--- a/litellm/proxy/health_check.py
++++ b/litellm/proxy/health_check.py
+@@ -211,7 +211,7 @@ async def _perform_health_check(
+         results = await asyncio.gather(*tasks, return_exceptions=True)
+ 
+     if instrumentation_enabled:
+-        logger.debug(
++        logger.info(
+             "health_check_dispatch_summary source=%s cycle_id=%s mode=%s model_count=%d max_concurrency=%s peak_in_flight=%d thread_count=%d rss_mb=%s",
+             source,
+             cycle_id,
+diff --git a/litellm/proxy/proxy_server.py b/litellm/proxy/proxy_server.py
+index b3ed22e273..cb04a36d3a 100644
+--- a/litellm/proxy/proxy_server.py
++++ b/litellm/proxy/proxy_server.py
+@@ -219,6 +219,7 @@ from litellm.constants import (
+     APSCHEDULER_MISFIRE_GRACE_TIME,
+     APSCHEDULER_REPLACE_EXISTING,
+     DAYS_IN_A_MONTH,
++    DEFAULT_HEALTH_CHECK_CONCURRENCY,
+     DEFAULT_HEALTH_CHECK_INTERVAL,
+     DEFAULT_MODEL_CREATED_AT_TIME,
+     LITELLM_PROXY_ADMIN_NAME,
+@@ -2718,6 +2719,15 @@ def _rss_mb_for_log() -> str:
+     return f"{rss_mb:.2f}"
+ 
+ 
++def _get_background_health_check_concurrency(
++    general_settings: dict,
++) -> Optional[int]:
++    configured_concurrency = general_settings.get("health_check_concurrency")
++    if configured_concurrency is None:
++        return DEFAULT_HEALTH_CHECK_CONCURRENCY
++    return configured_concurrency
++
++
+ async def _run_direct_health_check_with_instrumentation(
+     model_list: list,
+     details: Optional[bool],
+@@ -2981,7 +2991,7 @@ async def _run_background_health_check():
+         ):
+             expected_peak_in_flight = min(model_count_enabled, health_check_concurrency)
+ 
+-        verbose_proxy_logger.debug(
++        verbose_proxy_logger.info(
+             "background_health_check_cycle_start cycle_id=%s model_count_total=%d model_count_enabled=%d interval_seconds=%s max_concurrency=%s expected_peak_in_flight=%d shared=%s thread_count=%d rss_mb=%s",
+             cycle_id,
+             model_count_total,
+@@ -3050,7 +3060,7 @@ async def _run_background_health_check():
+         health_check_results["healthy_count"] = len(healthy_endpoints)
+         health_check_results["unhealthy_count"] = len(unhealthy_endpoints)
+         cycle_duration_ms = (time.monotonic() - cycle_start_time) * 1000
+-        verbose_proxy_logger.debug(
++        verbose_proxy_logger.info(
+             "background_health_check_cycle_complete cycle_id=%s model_count_enabled=%d healthy_count=%d unhealthy_count=%d duration_ms=%.2f interval_seconds=%s thread_count=%d rss_mb=%s",
+             cycle_id,
+             model_count_enabled,
+@@ -4267,8 +4277,8 @@ class ProxyConfig:
+             health_check_interval = general_settings.get(
+                 "health_check_interval", DEFAULT_HEALTH_CHECK_INTERVAL
+             )
+-            health_check_concurrency = general_settings.get(
+-                "health_check_concurrency", None
++            health_check_concurrency = _get_background_health_check_concurrency(
++                general_settings
+             )
+             health_check_details = general_settings.get("health_check_details", True)
+             # Health-check-driven routing (opt-in, passes through to Router later)
+diff --git a/litellm/proxy/schema.prisma b/litellm/proxy/schema.prisma
+index 84ce99557e..f44cb12ea1 100644
+--- a/litellm/proxy/schema.prisma
++++ b/litellm/proxy/schema.prisma
+@@ -1058,7 +1058,7 @@ model LiteLLM_HealthCheckTable {
+   @@index([model_name])
+   @@index([checked_at])
+   @@index([status])
+-  @@index([model_id, model_name, checked_at(sort: Desc)], map: "LiteLLM_HealthCheckTable_model_id_model_name_checked_at_idx")
++  @@index([model_id, model_name, checked_at(sort: Desc), health_check_id(sort: Desc)], map: "LiteLLM_HealthCheckTable_latest_model_idx")
+ }
+ 
+ // Search Tools table for storing search tool configurations
+diff --git a/litellm/proxy/utils.py b/litellm/proxy/utils.py
+index c4c04156d0..8c1ede19ab 100644
+--- a/litellm/proxy/utils.py
++++ b/litellm/proxy/utils.py
+@@ -4689,8 +4689,9 @@ class PrismaClient:
+         """
+         Get the latest health check for each model.
+ 
+-        Uses DB-level DISTINCT ON (model_id, model_name) with ORDER BY checked_at DESC
+-        (via Prisma ``distinct`` + ``order``) so we never load the full history into memory.
++        Uses DB-level DISTINCT ON (model_id, model_name) with deterministic
++        checked_at/health_check_id ordering (via Prisma ``distinct`` + ``order``)
++        so we never load the full history into memory.
+         """
+         try:
+             return await self.db.litellm_healthchecktable.find_many(
+@@ -4699,6 +4700,7 @@ class PrismaClient:
+                     {"model_id": "asc"},
+                     {"model_name": "asc"},
+                     {"checked_at": "desc"},
++                    {"health_check_id": "desc"},
+                 ],
+             )
+         except Exception as e:
