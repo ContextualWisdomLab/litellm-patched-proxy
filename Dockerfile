@@ -60,7 +60,7 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     --mount=type=bind,source=patches/router-timedelta-661948eb.patch,target=/tmp/router-overlay.patch,ro \
     --mount=type=bind,source=patches/health-history-fce13be0.patch,target=/tmp/health-overlay.patch,ro \
     --mount=type=bind,source=patches/async-client-cleanup-91a5f2f4.patch,target=/tmp/async-cleanup-overlay.patch,ro \
-    --mount=type=bind,source=patches/langfuse-none-dynamic-params-b0bb6ade.patch,target=/tmp/langfuse-overlay.patch,ro \
+    --mount=type=bind,source=patches/langfuse-none-dynamic-params-d63a6438.patch,target=/tmp/langfuse-overlay.patch,ro \
     cd /tmp \
     && pkg_root="$(/app/.venv/bin/python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
     && pkg_parent="$(dirname "$pkg_root")" \
