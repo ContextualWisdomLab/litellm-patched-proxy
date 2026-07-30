@@ -16,6 +16,8 @@ ARG LITELLM_SCHEMA_SHA256=4929d5d49e09aa6946e167c1bf7afce1408e924aca00b63ec4109e
 ARG LITELLM_HEALTH_PATCH_SHA256=0817bf4a35500c8b0a41625d35c7ebae6b467a58cf5d3c7fbb699d0077f706af
 ARG LITELLM_HTTP_HANDLER_SHA256=fe0fba2252310bb27364f955d4ece8604eb6bc4a2452fc7a0c3abe4847dd5109
 ARG LITELLM_ASYNC_CLEANUP_PATCH_SHA256=5e2d870b236bc99cacc23678a840711c417b1355687f55a74606218fa6f78fa9
+ARG LITELLM_LANGFUSE_HANDLER_SHA256=a64bc8b12ea0a1cdc57d89ec534d36526a9baa064c03b83b24f25c63cb391c60
+ARG LITELLM_LANGFUSE_PATCH_SHA256=fbebc44ac272e7b49cad85f693c6bd7469fbe25c4db2e569335b572630a46b9e
 ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e578571c
 ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a140928a0
 
@@ -58,15 +60,18 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     --mount=type=bind,source=patches/router-timedelta-661948eb.patch,target=/tmp/router-overlay.patch,ro \
     --mount=type=bind,source=patches/health-history-fce13be0.patch,target=/tmp/health-overlay.patch,ro \
     --mount=type=bind,source=patches/async-client-cleanup-91a5f2f4.patch,target=/tmp/async-cleanup-overlay.patch,ro \
+    --mount=type=bind,source=patches/langfuse-none-dynamic-params-b0bb6ade.patch,target=/tmp/langfuse-overlay.patch,ro \
     cd /tmp \
     && pkg_root="$(/app/.venv/bin/python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
     && pkg_parent="$(dirname "$pkg_root")" \
     && printf '%s  %s\n' "$LITELLM_ROUTER_PATCH_SHA256" "/tmp/router-overlay.patch" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_HEALTH_PATCH_SHA256" "/tmp/health-overlay.patch" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_ASYNC_CLEANUP_PATCH_SHA256" "/tmp/async-cleanup-overlay.patch" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_LANGFUSE_PATCH_SHA256" "/tmp/langfuse-overlay.patch" | sha256sum -c - \
     && patch --batch --forward --strip=1 --directory="$pkg_parent" < /tmp/router-overlay.patch \
     && patch --batch --forward --strip=1 --directory="$pkg_parent" < /tmp/health-overlay.patch \
     && patch --batch --forward --strip=1 --directory="$pkg_parent" < /tmp/async-cleanup-overlay.patch \
+    && patch --batch --forward --strip=1 --directory="$pkg_parent" < /tmp/langfuse-overlay.patch \
     && printf '%s  %s\n' "$LITELLM_REDIS_CACHE_SHA256" "$pkg_root/caching/redis_cache.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_LOWEST_LATENCY_SHA256" "$pkg_root/router_strategy/lowest_latency.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_CONSTANTS_SHA256" "$pkg_root/constants.py" | sha256sum -c - \
@@ -75,6 +80,7 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     && printf '%s  %s\n' "$LITELLM_PROXY_UTILS_SHA256" "$pkg_root/proxy/utils.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_SCHEMA_SHA256" "$pkg_root/proxy/schema.prisma" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_HTTP_HANDLER_SHA256" "$pkg_root/llms/custom_httpx/http_handler.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_LANGFUSE_HANDLER_SHA256" "$pkg_root/integrations/langfuse/langfuse_handler.py" | sha256sum -c - \
     && find "$pkg_root" -type d -name __pycache__ -prune -exec rm -rf {} + \
     && /app/.venv/bin/python3 -c 'from importlib.metadata import version; assert version("litellm") == "1.84.10"' \
     && grep -Fq 'DEFAULT_HEALTH_CHECK_CONCURRENCY' "$pkg_root/constants.py" \

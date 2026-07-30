@@ -1,0 +1,32 @@
+diff --git a/litellm/integrations/langfuse/langfuse_handler.py b/litellm/integrations/langfuse/langfuse_handler.py
+index 4a80972642..0b0a7ba0a7 100644
+--- a/litellm/integrations/langfuse/langfuse_handler.py
++++ b/litellm/integrations/langfuse/langfuse_handler.py
+@@ -21,7 +21,7 @@ else:
+ class LangFuseHandler:
+     @staticmethod
+     def get_langfuse_logger_for_request(
+-        standard_callback_dynamic_params: StandardCallbackDynamicParams,
++        standard_callback_dynamic_params: Optional[StandardCallbackDynamicParams],
+         in_memory_dynamic_logger_cache: DynamicLoggingCache,
+         globalLangfuseLogger: Optional[LangFuseLogger] = None,
+     ) -> LangFuseLogger:
+@@ -151,7 +151,7 @@ class LangFuseHandler:
+ 
+     @staticmethod
+     def _dynamic_langfuse_credentials_are_passed(
+-        standard_callback_dynamic_params: StandardCallbackDynamicParams,
++        standard_callback_dynamic_params: Optional[StandardCallbackDynamicParams],
+     ) -> bool:
+         """
+         This function is used to check if the dynamic langfuse credentials are passed in standard_callback_dynamic_params
+@@ -160,6 +160,9 @@ class LangFuseHandler:
+             bool: True if the dynamic langfuse credentials are passed, False otherwise
+         """
+ 
++        if standard_callback_dynamic_params is None:
++            return False
++
+         if (
+             standard_callback_dynamic_params.get("langfuse_host") is not None
+             or standard_callback_dynamic_params.get("langfuse_public_key") is not None

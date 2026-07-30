@@ -31,6 +31,7 @@ def require_venv_path(path: str | Path, label: str) -> Path:
 def main() -> None:
     import litellm
     from litellm.caching import redis_cache
+    from litellm.integrations.langfuse.langfuse_handler import LangFuseHandler
     from litellm.llms.custom_httpx import http_handler
     from litellm.router_strategy import lowest_latency
 
@@ -80,6 +81,9 @@ def main() -> None:
     for fragment in required_cleanup_fragments:
         if fragment not in cleanup_source:
             fail(f"HTTP client cleanup is missing {fragment!r}")
+
+    if LangFuseHandler._dynamic_langfuse_credentials_are_passed(None):
+        fail("missing Langfuse dynamic parameters must not imply credentials")
 
     print(
         "runtime overlay verified:",
