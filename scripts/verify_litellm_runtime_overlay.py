@@ -31,6 +31,7 @@ def require_venv_path(path: str | Path, label: str) -> Path:
 def main() -> None:
     import litellm
     from litellm.caching import redis_cache
+    from litellm.llms.custom_httpx import http_handler
     from litellm.router_strategy import lowest_latency
 
     interpreter = Path(sys.executable).absolute()
@@ -38,6 +39,7 @@ def main() -> None:
         fail(f"Python interpreter resolved outside {EXPECTED_VENV}: {interpreter}")
     require_venv_path(litellm.__file__, "LiteLLM package")
     require_venv_path(redis_cache.__file__, "Redis cache module")
+    require_venv_path(http_handler.__file__, "HTTP handler module")
     require_venv_path(lowest_latency.__file__, "lowest-latency module")
 
     cli = shutil.which("litellm")
@@ -69,6 +71,15 @@ def main() -> None:
     for fragment in required_latency_fragments:
         if fragment not in latency_source:
             fail(f"lowest-latency runtime is missing {fragment!r}")
+
+    cleanup_source = inspect.getsource(http_handler.AsyncHTTPHandler.__del__)
+    required_cleanup_fragments = (
+        "_async_client_cleanup_tasks.add(task)",
+        "task.add_done_callback(_discard_async_client_cleanup_task)",
+    )
+    for fragment in required_cleanup_fragments:
+        if fragment not in cleanup_source:
+            fail(f"HTTP client cleanup is missing {fragment!r}")
 
     print(
         "runtime overlay verified:",

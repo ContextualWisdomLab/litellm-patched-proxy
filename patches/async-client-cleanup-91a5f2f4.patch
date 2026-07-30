@@ -1,0 +1,42 @@
+diff --git a/litellm/llms/custom_httpx/http_handler.py b/litellm/llms/custom_httpx/http_handler.py
+index d8f13f2a4f..2bb5d9b190 100644
+--- a/litellm/llms/custom_httpx/http_handler.py
++++ b/litellm/llms/custom_httpx/http_handler.py
+@@ -11,6 +11,7 @@ from typing import (
+     List,
+     Mapping,
+     Optional,
++    Set,
+     Tuple,
+     Union,
+ )
+@@ -77,6 +78,18 @@ _DEFAULT_TIMEOUT = httpx.Timeout(
+     connect=HTTP_HANDLER_CONNECT_TIMEOUT_SECONDS,
+ )
+ 
++_async_client_cleanup_tasks: Set[asyncio.Task] = set()
++
++
++def _discard_async_client_cleanup_task(task: asyncio.Task) -> None:
++    _async_client_cleanup_tasks.discard(task)
++    if task.cancelled():
++        return
++    try:
++        task.exception()
++    except Exception:
++        pass
++
+ 
+ def _prepare_request_data_and_content(
+     data: Optional[Union[dict, str, bytes]] = None,
+@@ -831,7 +844,9 @@ class AsyncHTTPHandler:
+ 
+     def __del__(self) -> None:
+         try:
+-            asyncio.get_running_loop().create_task(self.close())
++            task = asyncio.get_running_loop().create_task(self.close())
++            _async_client_cleanup_tasks.add(task)
++            task.add_done_callback(_discard_async_client_cleanup_task)
+         except Exception:
+             pass
+ 
