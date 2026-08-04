@@ -45,6 +45,10 @@ EXPECTED_SPEND_WRITER_TOKENS = [
     "pool_wait_histogram_count=%s pool_wait_histogram_sum_ms=%s",
     "self._redis_db_commit_consecutive_failures = 0",
 ]
+EXPECTED_LANGFUSE_HANDLER_TOKENS = [
+    "standard_callback_dynamic_params: Optional[StandardCallbackDynamicParams]",
+    "if standard_callback_dynamic_params is None:",
+]
 
 
 def fail(message: str) -> None:
@@ -126,6 +130,45 @@ def verify_spend_writer(path: Path) -> None:
         fail(f"spend-writer observability tokens are missing: {missing!r}")
 
 
+def verify_langfuse_handler(path: Path) -> None:
+    source = path.read_text(encoding="utf-8")
+    missing = [
+        token for token in EXPECTED_LANGFUSE_HANDLER_TOKENS if token not in source
+    ]
+    if missing:
+        fail(f"Langfuse callback guard tokens are missing: {missing!r}")
+
+    tree = ast.parse(source, filename=str(path))
+    functions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_dynamic_langfuse_credentials_are_passed"
+    ]
+    if len(functions) != 1:
+        fail("expected exactly one dynamic Langfuse credential predicate")
+
+    none_guards = [
+        node
+        for node in ast.walk(functions[0])
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Compare)
+        and isinstance(node.test.left, ast.Name)
+        and node.test.left.id == "standard_callback_dynamic_params"
+        and len(node.test.ops) == 1
+        and isinstance(node.test.ops[0], ast.Is)
+        and len(node.test.comparators) == 1
+        and isinstance(node.test.comparators[0], ast.Constant)
+        and node.test.comparators[0].value is None
+        and len(node.body) == 1
+        and isinstance(node.body[0], ast.Return)
+        and isinstance(node.body[0].value, ast.Constant)
+        and node.body[0].value.value is False
+    ]
+    if len(none_guards) != 1:
+        fail("dynamic Langfuse credential predicate must return False for None")
+
+
 def verify_schema(path: Path) -> None:
     source = path.read_text(encoding="utf-8")
     model = re.search(
@@ -153,13 +196,17 @@ def verify_schema(path: Path) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 4:
-        fail("usage: verify_litellm_health_overlay.py UTILS SCHEMA SPEND_WRITER")
+    if len(sys.argv) != 5:
+        fail(
+            "usage: verify_litellm_health_overlay.py "
+            "UTILS SCHEMA SPEND_WRITER LANGFUSE_HANDLER"
+        )
     utils_path = Path(sys.argv[1])
     verify_query(utils_path)
     verify_watchdog(utils_path)
     verify_schema(Path(sys.argv[2]))
     verify_spend_writer(Path(sys.argv[3]))
+    verify_langfuse_handler(Path(sys.argv[4]))
     print("health overlay structure verified")
 
 

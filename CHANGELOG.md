@@ -1,5 +1,24 @@
 # 변경 이력
 
+## 2026-08-05 KST - Langfuse dynamic callback None guard
+
+### 장애 근거
+
+- 개발 게이트웨이에서 `2026-08-04T15:25:42.870856Z`에 Langfuse 성공 콜백이 `standard_callback_dynamic_params=None`을 처리하지 못해 `AttributeError: 'NoneType' object has no attribute 'get'`을 기록했습니다.
+- 컨테이너와 Prisma query-engine은 연속 실행 중이었으므로 이 예외는 engine 재시작이나 DB reconnect의 후속 오류가 아닙니다.
+
+### 변경 사항
+
+- LiteLLM fork merge commit `3dc0fcfade4f1906af2f6ad8a08903e5867194ae`의 `integrations/langfuse/langfuse_handler.py`를 vendored overlay로 고정했습니다.
+- dynamic callback parameter가 `None`이면 dynamic credential이 없는 것으로 처리해 global Langfuse logger 경로를 사용합니다.
+- Docker build는 handler SHA-256, Optional 시그니처 및 명시적인 `None` guard를 검증합니다.
+- 최신 Trivy DB가 추가로 탐지한 `aiohttp`, `cryptography`, `mcp`, `pyasn1`, `pypdf`, `brace-expansion`, `ip-address`, `tar`의 수정 가능 HIGH/CRITICAL 취약점을 고정 버전으로 갱신합니다. `cryptography 50`과 호환되는 `msal 1.37.0`을 함께 고정하고 `uv pip check`로 전체 Python 의존성 일관성을 검증합니다. npm tarball은 SHA-256을 검증한 뒤 중복 설치본 전체를 교체합니다.
+
+### 검증 및 롤백
+
+- 소스 PR의 회귀 테스트 2개, Ruff 및 Black 검사를 통과했습니다. 이미지에서는 hash, 구조 검증, Python compile, container build 및 callback smoke test를 다시 수행합니다.
+- 배포 전까지 런타임 변경은 없습니다. 배포 후 callback 회귀 시 직전 immutable image digest로 노드별 롤백합니다.
+
 ## 2026-08-04 KST - Prisma spend transaction event-time diagnostics
 
 ### 장애 근거
