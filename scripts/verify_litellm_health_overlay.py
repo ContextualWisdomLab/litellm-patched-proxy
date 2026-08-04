@@ -30,8 +30,20 @@ EXPECTED_WATCHDOG_TOKENS = [
     "failure_kind=%s exception_type=%s elapsed_ms=%s",
     "consecutive_reconnect_failures=%s",
     "pool_active=%s pool_wait=%s",
-    "pool_busy=%s pool_idle=%s pool_open=%s pool_target=%s",
+    "pool_busy=%s pool_idle=%s",
+    "pool_open=%s pool_opened_total=%s pool_closed_total=%s",
+    "pool_wait_histogram_count=%s pool_wait_histogram_sum_ms=%s",
+    "pool_wait_histogram_le_1000=%s pool_wait_histogram_le_5000=%s",
+    "pool_target=%s",
     "pool_metrics_error_type=%s",
+]
+EXPECTED_SPEND_WRITER_TOKENS = [
+    "event=prisma_spend_transaction_failure",
+    "exception_type=%s elapsed_ms=%s error=%s consecutive_failures=%s",
+    "engine_started_at=%s engine_process_error_type=%s",
+    "pool_opened_total=%s pool_closed_total=%s",
+    "pool_wait_histogram_count=%s pool_wait_histogram_sum_ms=%s",
+    "self._redis_db_commit_consecutive_failures = 0",
 ]
 
 
@@ -107,6 +119,13 @@ def verify_watchdog(path: Path) -> None:
         fail(f"watchdog observability tokens are missing: {missing!r}")
 
 
+def verify_spend_writer(path: Path) -> None:
+    source = path.read_text(encoding="utf-8")
+    missing = [token for token in EXPECTED_SPEND_WRITER_TOKENS if token not in source]
+    if missing:
+        fail(f"spend-writer observability tokens are missing: {missing!r}")
+
+
 def verify_schema(path: Path) -> None:
     source = path.read_text(encoding="utf-8")
     model = re.search(
@@ -134,12 +153,13 @@ def verify_schema(path: Path) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 3:
-        fail("usage: verify_litellm_health_overlay.py UTILS SCHEMA")
+    if len(sys.argv) != 4:
+        fail("usage: verify_litellm_health_overlay.py UTILS SCHEMA SPEND_WRITER")
     utils_path = Path(sys.argv[1])
     verify_query(utils_path)
     verify_watchdog(utils_path)
     verify_schema(Path(sys.argv[2]))
+    verify_spend_writer(Path(sys.argv[3]))
     print("health overlay structure verified")
 
 

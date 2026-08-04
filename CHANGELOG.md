@@ -1,5 +1,24 @@
 # 변경 이력
 
+## 2026-08-04 KST - Prisma spend transaction event-time diagnostics
+
+### 장애 근거
+
+- 개발 게이트웨이에서 `2026-08-04T12:45:57.228643Z`에 spend writer의 Prisma `P2028` transaction start 실패가 재발했습니다.
+- transaction body timeout은 60초였지만 connection checkout은 기본 `max_wait=2s`를 유지했습니다. 설치된 런타임은 실패 시점의 exception class, checkout 경과 시간, query-engine 상태, pool counter 및 연속 실패 횟수를 남기지 않아 개별 `SELECT 1` 지연 원인을 분리할 수 없었습니다.
+
+### 변경 사항
+
+- LiteLLM fork merge commit `4b5e57c14b12f427546afc0cc7c89a2caff8bc34`의 `proxy/utils.py`와 `proxy/db/db_spend_update_writer.py`를 vendored overlay로 고정했습니다.
+- spend transaction 실패 시 기존 일반 오류보다 먼저 exception type, elapsed milliseconds, 연속 실패 상태, engine PID/port/state/start UTC, pool active/wait/busy/idle/open, opened/closed 및 wait histogram을 기록합니다.
+- 연속 실패 횟수는 Redis-to-DB commit 전체가 성공한 뒤에만 초기화합니다. reconnect 조건과 동작은 변경하지 않습니다.
+- Docker build는 두 파일의 SHA-256과 필수 관측성 토큰을 모두 검증합니다.
+
+### 검증 및 롤백
+
+- 소스 PR에서 관련 테스트 50개와 Ruff를 통과했습니다. 이미지에서는 hash, 구조 검증, Python compile, container build 및 smoke test를 다시 수행합니다.
+- 배포 전까지 런타임 변경은 없습니다. 배포 후 회귀 시 직전 immutable image digest로 복귀하고 readiness/liveliness, engine continuity, effective pool, PgCat/PostgreSQL 오류 창을 재검증합니다.
+
 ## 2026-07-17 KST - LiteLLM 백그라운드 상태 점검 부하 완화
 
 ### 장애 근거

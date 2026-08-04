@@ -7,11 +7,12 @@ ENV PIP_ROOT_USER_ACTION=ignore
 ARG LITELLM_PATCH_COMMIT=661948eb340aa7661a4203205154cf22106077df
 ARG LITELLM_REDIS_CACHE_SHA256=0fabfb741e3a482b002d70cbf59c0627239b59d0ba08a0300c06f9d049f09c81
 ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a2520815da12c8e46d448
-ARG LITELLM_HEALTH_PATCH_COMMIT=74da1d5af1d50bca763a85a2b15b85d08e6df3d4
+ARG LITELLM_HEALTH_PATCH_COMMIT=4b5e57c14b12f427546afc0cc7c89a2caff8bc34
 ARG LITELLM_CONSTANTS_SHA256=771612640a5d4857ed5548abed8f4f4fd0b7d5ff710cb9e9a29dd7e22020aab1
 ARG LITELLM_HEALTH_CHECK_SHA256=3ebc961d09f087f3b0b507dcb529db65abbcf0f17f849fe24bcb78d3607fed67
 ARG LITELLM_PROXY_SERVER_SHA256=dfa8495a62758b9b1269a2d2a902b44d51ed764ac008a30480ee5eb4a1a53657
-ARG LITELLM_PROXY_UTILS_SHA256=dc73ea669be30c44385f329bd6c636dfda168881d6edcf27f05c6623ef3061b0
+ARG LITELLM_PROXY_UTILS_SHA256=9f7f57a619becce7695322e6835580711f47012d436d700b7ba3f6b08b41b624
+ARG LITELLM_DB_SPEND_UPDATE_WRITER_SHA256=9ca67e1f40546982c3efec8b7c3b331166b66a46cec5e74d93ad30f478f3a9a1
 ARG LITELLM_SCHEMA_SHA256=4929d5d49e09aa6946e167c1bf7afce1408e924aca00b63ec4109e389e1f59df
 ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e578571c
 ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a140928a0
@@ -62,6 +63,7 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     && printf '%s  %s\n' "$LITELLM_HEALTH_CHECK_SHA256" "$overlay_root/proxy/health_check.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_PROXY_SERVER_SHA256" "$overlay_root/proxy/proxy_server.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_PROXY_UTILS_SHA256" "$overlay_root/proxy/utils.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_DB_SPEND_UPDATE_WRITER_SHA256" "$overlay_root/proxy/db/db_spend_update_writer.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_SCHEMA_SHA256" "$overlay_root/proxy/schema.prisma" | sha256sum -c - \
     && install -m 0644 "$overlay_root/caching/redis_cache.py" "$pkg_root/caching/redis_cache.py" \
     && install -m 0644 "$overlay_root/router_strategy/lowest_latency.py" "$pkg_root/router_strategy/lowest_latency.py" \
@@ -69,12 +71,14 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     && install -m 0644 "$overlay_root/proxy/health_check.py" "$pkg_root/proxy/health_check.py" \
     && install -m 0644 "$overlay_root/proxy/proxy_server.py" "$pkg_root/proxy/proxy_server.py" \
     && install -m 0644 "$overlay_root/proxy/utils.py" "$pkg_root/proxy/utils.py" \
+    && install -m 0644 "$overlay_root/proxy/db/db_spend_update_writer.py" "$pkg_root/proxy/db/db_spend_update_writer.py" \
     && install -m 0644 "$overlay_root/proxy/schema.prisma" "$pkg_root/proxy/schema.prisma" \
     && /app/.venv/bin/python3 -c 'from importlib.metadata import version; assert version("litellm") == "1.84.10"' \
     && grep -Fq 'DEFAULT_HEALTH_CHECK_CONCURRENCY' "$pkg_root/constants.py" \
     && grep -Fq 'background_health_check_cycle_start' "$pkg_root/proxy/proxy_server.py" \
     && /app/.venv/bin/python3 /usr/local/bin/verify-litellm-health-overlay \
-         "$pkg_root/proxy/utils.py" "$pkg_root/proxy/schema.prisma"
+         "$pkg_root/proxy/utils.py" "$pkg_root/proxy/schema.prisma" \
+         "$pkg_root/proxy/db/db_spend_update_writer.py"
 
 # Upgrade every picomatch and sigstore installation found in the base image.
 # Download each verified tarball once to avoid O(N) network requests in loops.
