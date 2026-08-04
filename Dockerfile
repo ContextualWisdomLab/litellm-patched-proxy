@@ -50,36 +50,31 @@ RUN apk_retry() { \
     && rm -rf /root/.cache
 
 # Overlay reviewed fixes from immutable fork commits onto the pinned package.
+# The verified source is vendored so private-repository access is not required
+# during a reproducible image build.
 RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/usr/local/bin/verify-litellm-health-overlay,ro \
-    tmpdir="$(mktemp -d)" \
+    --mount=type=bind,source=vendor/litellm,target=/tmp/litellm-overlay,ro \
+    overlay_root=/tmp/litellm-overlay \
     && pkg_root="$(/app/.venv/bin/python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/caching/redis_cache.py" -o "$tmpdir/redis_cache.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/router_strategy/lowest_latency.py" -o "$tmpdir/lowest_latency.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/constants.py" -o "$tmpdir/constants.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/health_check.py" -o "$tmpdir/health_check.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/proxy_server.py" -o "$tmpdir/proxy_server.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/utils.py" -o "$tmpdir/utils.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/schema.prisma" -o "$tmpdir/schema.prisma" \
-    && printf '%s  %s\n' "$LITELLM_REDIS_CACHE_SHA256" "$tmpdir/redis_cache.py" | sha256sum -c - \
-    && printf '%s  %s\n' "$LITELLM_LOWEST_LATENCY_SHA256" "$tmpdir/lowest_latency.py" | sha256sum -c - \
-    && printf '%s  %s\n' "$LITELLM_CONSTANTS_SHA256" "$tmpdir/constants.py" | sha256sum -c - \
-    && printf '%s  %s\n' "$LITELLM_HEALTH_CHECK_SHA256" "$tmpdir/health_check.py" | sha256sum -c - \
-    && printf '%s  %s\n' "$LITELLM_PROXY_SERVER_SHA256" "$tmpdir/proxy_server.py" | sha256sum -c - \
-    && printf '%s  %s\n' "$LITELLM_PROXY_UTILS_SHA256" "$tmpdir/utils.py" | sha256sum -c - \
-    && printf '%s  %s\n' "$LITELLM_SCHEMA_SHA256" "$tmpdir/schema.prisma" | sha256sum -c - \
-    && install -m 0644 "$tmpdir/redis_cache.py" "$pkg_root/caching/redis_cache.py" \
-    && install -m 0644 "$tmpdir/lowest_latency.py" "$pkg_root/router_strategy/lowest_latency.py" \
-    && install -m 0644 "$tmpdir/constants.py" "$pkg_root/constants.py" \
-    && install -m 0644 "$tmpdir/health_check.py" "$pkg_root/proxy/health_check.py" \
-    && install -m 0644 "$tmpdir/proxy_server.py" "$pkg_root/proxy/proxy_server.py" \
-    && install -m 0644 "$tmpdir/utils.py" "$pkg_root/proxy/utils.py" \
-    && install -m 0644 "$tmpdir/schema.prisma" "$pkg_root/proxy/schema.prisma" \
+    && printf '%s  %s\n' "$LITELLM_REDIS_CACHE_SHA256" "$overlay_root/caching/redis_cache.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_LOWEST_LATENCY_SHA256" "$overlay_root/router_strategy/lowest_latency.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_CONSTANTS_SHA256" "$overlay_root/constants.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_HEALTH_CHECK_SHA256" "$overlay_root/proxy/health_check.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_PROXY_SERVER_SHA256" "$overlay_root/proxy/proxy_server.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_PROXY_UTILS_SHA256" "$overlay_root/proxy/utils.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_SCHEMA_SHA256" "$overlay_root/proxy/schema.prisma" | sha256sum -c - \
+    && install -m 0644 "$overlay_root/caching/redis_cache.py" "$pkg_root/caching/redis_cache.py" \
+    && install -m 0644 "$overlay_root/router_strategy/lowest_latency.py" "$pkg_root/router_strategy/lowest_latency.py" \
+    && install -m 0644 "$overlay_root/constants.py" "$pkg_root/constants.py" \
+    && install -m 0644 "$overlay_root/proxy/health_check.py" "$pkg_root/proxy/health_check.py" \
+    && install -m 0644 "$overlay_root/proxy/proxy_server.py" "$pkg_root/proxy/proxy_server.py" \
+    && install -m 0644 "$overlay_root/proxy/utils.py" "$pkg_root/proxy/utils.py" \
+    && install -m 0644 "$overlay_root/proxy/schema.prisma" "$pkg_root/proxy/schema.prisma" \
     && /app/.venv/bin/python3 -c 'from importlib.metadata import version; assert version("litellm") == "1.84.10"' \
     && grep -Fq 'DEFAULT_HEALTH_CHECK_CONCURRENCY' "$pkg_root/constants.py" \
     && grep -Fq 'background_health_check_cycle_start' "$pkg_root/proxy/proxy_server.py" \
     && /app/.venv/bin/python3 /usr/local/bin/verify-litellm-health-overlay \
-         "$pkg_root/proxy/utils.py" "$pkg_root/proxy/schema.prisma" \
-    && rm -rf "$tmpdir"
+         "$pkg_root/proxy/utils.py" "$pkg_root/proxy/schema.prisma"
 
 # Upgrade every picomatch and sigstore installation found in the base image.
 # Download each verified tarball once to avoid O(N) network requests in loops.
