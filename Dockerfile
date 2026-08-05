@@ -14,6 +14,7 @@ ARG LITELLM_PROXY_SERVER_SHA256=dfa8495a62758b9b1269a2d2a902b44d51ed764ac008a304
 ARG LITELLM_PROXY_UTILS_SHA256=d2e81c46d180898c90f11d596597570cdbab9b3d75cdd642e5c2ab38dac1c049
 ARG LITELLM_DB_SPEND_UPDATE_WRITER_SHA256=9ca67e1f40546982c3efec8b7c3b331166b66a46cec5e74d93ad30f478f3a9a1
 ARG LITELLM_LANGFUSE_HANDLER_SHA256=14704a5a1a65dd1e2f5c0f3f55179f2eb1b49c67d0fbdc442d9df907d86af62f
+ARG LITELLM_ASYNC_HTTP_HANDLER_SHA256=fe0fba2252310bb27364f955d4ece8604eb6bc4a2452fc7a0c3abe4847dd5109
 ARG LITELLM_SCHEMA_SHA256=4929d5d49e09aa6946e167c1bf7afce1408e924aca00b63ec4109e389e1f59df
 ARG BRACE_EXPANSION_SHA256=5d06001fddd25cbee90c96db4dc5b7b57711b984c3141e28d10f143deb52dbaf
 ARG IP_ADDRESS_SHA256=ad1790063beea11a312c801df30d58e147de762f4f77787552376eb7424623e5
@@ -75,6 +76,7 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     && printf '%s  %s\n' "$LITELLM_PROXY_UTILS_SHA256" "$overlay_root/proxy/utils.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_DB_SPEND_UPDATE_WRITER_SHA256" "$overlay_root/proxy/db/db_spend_update_writer.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_LANGFUSE_HANDLER_SHA256" "$overlay_root/integrations/langfuse/langfuse_handler.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_ASYNC_HTTP_HANDLER_SHA256" "$overlay_root/llms/custom_httpx/http_handler.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_SCHEMA_SHA256" "$overlay_root/proxy/schema.prisma" | sha256sum -c - \
     && install -m 0644 "$overlay_root/caching/redis_cache.py" "$pkg_root/caching/redis_cache.py" \
     && install -m 0644 "$overlay_root/router_strategy/lowest_latency.py" "$pkg_root/router_strategy/lowest_latency.py" \
@@ -84,6 +86,7 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     && install -m 0644 "$overlay_root/proxy/utils.py" "$pkg_root/proxy/utils.py" \
     && install -m 0644 "$overlay_root/proxy/db/db_spend_update_writer.py" "$pkg_root/proxy/db/db_spend_update_writer.py" \
     && install -m 0644 "$overlay_root/integrations/langfuse/langfuse_handler.py" "$pkg_root/integrations/langfuse/langfuse_handler.py" \
+    && install -m 0644 "$overlay_root/llms/custom_httpx/http_handler.py" "$pkg_root/llms/custom_httpx/http_handler.py" \
     && install -m 0644 "$overlay_root/proxy/schema.prisma" "$pkg_root/proxy/schema.prisma" \
     && /app/.venv/bin/python3 -c 'from importlib.metadata import version; assert version("litellm") == "1.84.10"' \
     && grep -Fq 'DEFAULT_HEALTH_CHECK_CONCURRENCY' "$pkg_root/constants.py" \
@@ -91,7 +94,8 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     && /app/.venv/bin/python3 /usr/local/bin/verify-litellm-health-overlay \
          "$pkg_root/proxy/utils.py" "$pkg_root/proxy/schema.prisma" \
          "$pkg_root/proxy/db/db_spend_update_writer.py" \
-         "$pkg_root/integrations/langfuse/langfuse_handler.py"
+         "$pkg_root/integrations/langfuse/langfuse_handler.py" \
+         "$pkg_root/llms/custom_httpx/http_handler.py"
 
 # Upgrade every vulnerable npm package installation found in the base image.
 # Download each verified tarball once to avoid O(N) network requests in loops.

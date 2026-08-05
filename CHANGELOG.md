@@ -1,5 +1,24 @@
 # 변경 이력
 
+## 2026-08-06 KST - Async HTTP destructor cleanup ownership
+
+### 장애 근거
+
+- 개발 게이트웨이는 `2026-08-05T15:14:31.435Z`에 `aiohttp`의 `Unclosed client session`을 기록했습니다. 같은 호스트에서는 이전 109개 모델 상태 점검 주기에 39건이 함께 발생한 이력이 있습니다.
+- LiteLLM 1.84.10의 `AsyncHTTPHandler.__del__()`은 `close()` task를 생성한 뒤 강한 참조를 유지하지 않아 destructor 복귀 직후 task가 수집될 수 있습니다. 정확한 이번 session id와 생성 call stack은 기존 런타임 로그에 없으므로 단일 경고의 소유자를 과장하지 않습니다.
+- LiteLLM fork PR #18은 cleanup task를 모듈 집합에 보관하고 완료 callback에서 제거하는 회귀 테스트를 거쳐 병합됐습니다. 이 이미지는 동일 수정을 1.84.10 소스에 적용한 immutable commit `978a3fbf108218487ed660d5be74b2758204430b`을 사용합니다.
+
+### 변경 사항
+
+- `llms/custom_httpx/http_handler.py`를 vendored overlay에 추가해 destructor cleanup task가 종료될 때까지 강한 참조를 유지합니다.
+- 완료 callback은 task를 집합에서 제거하고 예외를 회수해 별도의 unhandled task 경고를 막습니다.
+- Docker build는 파일 SHA-256과 AST 실행 순서인 create, retain, done callback 등록을 검증합니다.
+
+### 검증 및 롤백
+
+- 소스 회귀 테스트, Ruff, vendored source compile, overlay 구조 검증, 이미지 build와 in-image smoke를 수행합니다.
+- 배포 전 런타임 변경은 없습니다. dev에 먼저 적용해 상태 점검 주기 여러 번과 `Unclosed client session` 재발 여부를 확인하며, 회귀 시 직전 immutable image digest로 복귀합니다.
+
 ## 2026-08-06 KST - Prisma OOM initiating query and reconnect preflight evidence
 
 ### 장애 근거

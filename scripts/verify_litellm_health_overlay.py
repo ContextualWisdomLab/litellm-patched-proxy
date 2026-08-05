@@ -56,6 +56,12 @@ EXPECTED_LANGFUSE_HANDLER_TOKENS = [
     "standard_callback_dynamic_params: Optional[StandardCallbackDynamicParams]",
     "if standard_callback_dynamic_params is None:",
 ]
+EXPECTED_ASYNC_HTTP_HANDLER_TOKENS = [
+    "_async_client_cleanup_tasks: Set[asyncio.Task] = set()",
+    "task = asyncio.get_running_loop().create_task(self.close())",
+    "_async_client_cleanup_tasks.add(task)",
+    "task.add_done_callback(_discard_async_client_cleanup_task)",
+]
 
 
 def fail(message: str) -> None:
@@ -205,6 +211,53 @@ def verify_langfuse_handler(path: Path) -> None:
         fail("dynamic Langfuse credential predicate must return False for None")
 
 
+def verify_async_http_handler(path: Path) -> None:
+    source = path.read_text(encoding="utf-8")
+    missing = [
+        token for token in EXPECTED_ASYNC_HTTP_HANDLER_TOKENS if token not in source
+    ]
+    if missing:
+        fail(f"async HTTP cleanup tokens are missing: {missing!r}")
+
+    tree = ast.parse(source, filename=str(path))
+    classes = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and node.name == "AsyncHTTPHandler"
+    ]
+    if len(classes) != 1:
+        fail("expected exactly one AsyncHTTPHandler class")
+    destructors = [
+        node
+        for node in classes[0].body
+        if isinstance(node, ast.FunctionDef) and node.name == "__del__"
+    ]
+    if len(destructors) != 1:
+        fail("expected exactly one AsyncHTTPHandler destructor")
+
+    calls = [node for node in ast.walk(destructors[0]) if isinstance(node, ast.Call)]
+    create_calls = [
+        node
+        for node in calls
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "create_task"
+    ]
+    retain_calls = [
+        node
+        for node in calls
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "add"
+    ]
+    callback_calls = [
+        node
+        for node in calls
+        if isinstance(node.func, ast.Attribute)
+        and node.func.attr == "add_done_callback"
+    ]
+    if len(create_calls) != 1 or len(retain_calls) != 1 or len(callback_calls) != 1:
+        fail("async HTTP destructor must create, retain, and release one cleanup task")
+    if not (create_calls[0].lineno < retain_calls[0].lineno < callback_calls[0].lineno):
+        fail("async HTTP cleanup task must be retained before its done callback")
+
+
 def verify_schema(path: Path) -> None:
     source = path.read_text(encoding="utf-8")
     model = re.search(
@@ -232,10 +285,10 @@ def verify_schema(path: Path) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 6:
         fail(
             "usage: verify_litellm_health_overlay.py "
-            "UTILS SCHEMA SPEND_WRITER LANGFUSE_HANDLER"
+            "UTILS SCHEMA SPEND_WRITER LANGFUSE_HANDLER ASYNC_HTTP_HANDLER"
         )
     utils_path = Path(sys.argv[1])
     verify_query(utils_path)
@@ -243,6 +296,7 @@ def main() -> None:
     verify_schema(Path(sys.argv[2]))
     verify_spend_writer(Path(sys.argv[3]))
     verify_langfuse_handler(Path(sys.argv[4]))
+    verify_async_http_handler(Path(sys.argv[5]))
     print("health overlay structure verified")
 
 
