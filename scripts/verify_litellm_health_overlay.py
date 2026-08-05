@@ -62,6 +62,14 @@ EXPECTED_ASYNC_HTTP_HANDLER_TOKENS = [
     "_async_client_cleanup_tasks.add(task)",
     "task.add_done_callback(_discard_async_client_cleanup_task)",
 ]
+EXPECTED_HEALTH_PAYLOAD_TOKENS = [
+    '_GENERATIVE_HEALTH_CHECK_MODES = frozenset((None, "chat", "completion", "responses"))',
+    "_MIN_HEALTH_CHECK_OUTPUT_TOKENS = 16",
+    "_DEFAULT_REASONING_HEALTH_CHECK_OUTPUT_TOKENS = 256",
+    "return max(int(explicit), minimum_tokens)",
+    'for key in ("messages", "max_tokens", "reasoning_effort"):',
+    "litellm_params.pop(key, None)",
+]
 
 
 def fail(message: str) -> None:
@@ -258,6 +266,26 @@ def verify_async_http_handler(path: Path) -> None:
         fail("async HTTP cleanup task must be retained before its done callback")
 
 
+def verify_health_payload(path: Path) -> None:
+    source = path.read_text(encoding="utf-8")
+    missing = [token for token in EXPECTED_HEALTH_PAYLOAD_TOKENS if token not in source]
+    if missing:
+        fail(f"provider-safe health payload tokens are missing: {missing!r}")
+
+    tree = ast.parse(source, filename=str(path))
+    functions = {
+        node.name: node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    for name in (
+        "_resolve_health_check_max_tokens",
+        "_update_litellm_params_for_health_check",
+    ):
+        if name not in functions:
+            fail(f"expected health payload function is missing: {name}")
+
+
 def verify_schema(path: Path) -> None:
     source = path.read_text(encoding="utf-8")
     model = re.search(
@@ -275,8 +303,7 @@ def verify_schema(path: Path) -> None:
         if index.group("name") != EXPECTED_INDEX_NAME:
             continue
         fields = [
-            re.sub(r"\s+", "", field)
-            for field in index.group("fields").split(",")
+            re.sub(r"\s+", "", field) for field in index.group("fields").split(",")
         ]
         if fields != EXPECTED_INDEX_FIELDS:
             fail(f"unexpected composite index fields: {fields!r}")
@@ -285,18 +312,20 @@ def verify_schema(path: Path) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         fail(
             "usage: verify_litellm_health_overlay.py "
-            "UTILS SCHEMA SPEND_WRITER LANGFUSE_HANDLER ASYNC_HTTP_HANDLER"
+            "UTILS SCHEMA HEALTH_CHECK SPEND_WRITER LANGFUSE_HANDLER "
+            "ASYNC_HTTP_HANDLER"
         )
     utils_path = Path(sys.argv[1])
     verify_query(utils_path)
     verify_watchdog(utils_path)
     verify_schema(Path(sys.argv[2]))
-    verify_spend_writer(Path(sys.argv[3]))
-    verify_langfuse_handler(Path(sys.argv[4]))
-    verify_async_http_handler(Path(sys.argv[5]))
+    verify_health_payload(Path(sys.argv[3]))
+    verify_spend_writer(Path(sys.argv[4]))
+    verify_langfuse_handler(Path(sys.argv[5]))
+    verify_async_http_handler(Path(sys.argv[6]))
     print("health overlay structure verified")
 
 

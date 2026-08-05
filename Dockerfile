@@ -7,9 +7,9 @@ ENV PIP_ROOT_USER_ACTION=ignore
 ARG LITELLM_PATCH_COMMIT=661948eb340aa7661a4203205154cf22106077df
 ARG LITELLM_REDIS_CACHE_SHA256=0fabfb741e3a482b002d70cbf59c0627239b59d0ba08a0300c06f9d049f09c81
 ARG LITELLM_LOWEST_LATENCY_SHA256=ae110430f0eba972cdfa5cb6e66875f0d586c646c34a2520815da12c8e46d448
-ARG LITELLM_HEALTH_PATCH_COMMIT=3dc0fcfade4f1906af2f6ad8a08903e5867194ae
+ARG LITELLM_HEALTH_PATCH_COMMIT=bdbe9f2fa7fe8daa52539c516b99e9f6f0013ed1
 ARG LITELLM_CONSTANTS_SHA256=771612640a5d4857ed5548abed8f4f4fd0b7d5ff710cb9e9a29dd7e22020aab1
-ARG LITELLM_HEALTH_CHECK_SHA256=3ebc961d09f087f3b0b507dcb529db65abbcf0f17f849fe24bcb78d3607fed67
+ARG LITELLM_HEALTH_CHECK_SHA256=a7a0284acad1b0af350da4650c022ed82eeac0dfc8c6c3e266f3194330744cc8
 ARG LITELLM_PROXY_SERVER_SHA256=dfa8495a62758b9b1269a2d2a902b44d51ed764ac008a30480ee5eb4a1a53657
 ARG LITELLM_PROXY_UTILS_SHA256=d2e81c46d180898c90f11d596597570cdbab9b3d75cdd642e5c2ab38dac1c049
 ARG LITELLM_DB_SPEND_UPDATE_WRITER_SHA256=9ca67e1f40546982c3efec8b7c3b331166b66a46cec5e74d93ad30f478f3a9a1
@@ -93,6 +93,7 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     && grep -Fq 'background_health_check_cycle_start' "$pkg_root/proxy/proxy_server.py" \
     && /app/.venv/bin/python3 /usr/local/bin/verify-litellm-health-overlay \
          "$pkg_root/proxy/utils.py" "$pkg_root/proxy/schema.prisma" \
+         "$pkg_root/proxy/health_check.py" \
          "$pkg_root/proxy/db/db_spend_update_writer.py" \
          "$pkg_root/integrations/langfuse/langfuse_handler.py" \
          "$pkg_root/llms/custom_httpx/http_handler.py"

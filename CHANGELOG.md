@@ -1,5 +1,24 @@
 # 변경 이력
 
+## 2026-08-06 KST - Provider-safe background health payloads
+
+### 장애 근거
+
+- `2026-08-05T19:11:30Z` 운영 상태 점검은 43개 배포 중 12개를 payload/API 오류로 기록했습니다. GPT 계열은 출력 한도 1 때문에 Azure 요청을 완료하지 못했고, GPT-5.2는 최소 16 이상이어야 한다는 정확한 400 응답을 반환했습니다.
+- `gemini-embedding-2-preview`는 embedding 요청에 전달된 생성 전용 `max_tokens` 필드를 알 수 없는 필드로 거부했습니다. 이 오류와 31개 미정리 세션 경고는 PostgreSQL/PgCat 정리보다 먼저 발생했으며, DB reconnect, replication, restart 또는 OOM이 시작 원인이 아닙니다.
+
+### 변경 사항
+
+- 생성형 상태 점검의 출력 한도를 일반 모델 최소 16, reasoning 모델 최소 256으로 강제합니다. 모델별 값이나 환경 값이 1처럼 잘못 설정돼도 유효한 하한으로 보정합니다.
+- embedding 등 typed API 상태 점검에서는 `messages`, `max_tokens`, `reasoning_effort`를 제거합니다.
+- `responses` 모드의 reasoning effort 전달과 상태 점검 dispatch INFO 로그를 유지합니다.
+- LiteLLM 소스 PR #22의 exact commit `bdbe9f2fa7fe8daa52539c516b99e9f6f0013ed1`과 파일 SHA-256을 고정하고 이미지 구조 검증에 안전 페이로드 계약을 추가합니다.
+
+### 검증 및 롤백
+
+- 소스의 focused payload 테스트 18개, Ruff, Python compile 및 diff 검사를 통과했습니다. 이미지 PR에서는 overlay 구조 검증, build, in-image smoke와 Trivy CRITICAL/HIGH 0건 게이트를 추가로 확인합니다.
+- 배포 전 런타임과 DB는 변경하지 않습니다. dev에서 실제 GPT/embedding 점검과 세션 경고 부재를 확인한 뒤 운영 노드를 한 대씩 교체하며, 회귀 시 직전 immutable digest로 복귀합니다.
+
 ## 2026-08-06 KST - Async HTTP destructor cleanup ownership
 
 ### 장애 근거

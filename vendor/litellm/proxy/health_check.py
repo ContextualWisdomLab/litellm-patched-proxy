@@ -9,14 +9,14 @@ import time
 from typing import List, Optional
 
 import litellm
-
-logger = logging.getLogger(__name__)
 from litellm.constants import (
     BACKGROUND_HEALTH_CHECK_MAX_TOKENS,
     BACKGROUND_HEALTH_CHECK_MAX_TOKENS_REASONING,
     DEFAULT_HEALTH_CHECK_PROMPT,
     HEALTH_CHECK_TIMEOUT_SECONDS,
 )
+
+logger = logging.getLogger(__name__)
 
 ILLEGAL_DISPLAY_PARAMS = [
     "messages",
@@ -29,17 +29,12 @@ ILLEGAL_DISPLAY_PARAMS = [
     "exception",  # internal; not JSON-serializable, never for display
     "litellm_metadata",  # internal tracking metadata with auth objects; not for display
 ]
-# Provider routing fields. Allowed for proxy admins so they can see which
-# region/version a deployment is checking; gated at the endpoint layer for
-# non-admin callers (see _strip_admin_only_fields_from_health_result).
-ADMIN_ONLY_HEALTH_DISPLAY_PARAMS = ("api_base", "api_version")
 
 MINIMAL_DISPLAY_PARAMS = ["model", "mode_error"]
 
-# Health-check modes that forward `reasoning_effort` to the provider (chat-style calls).
-_HEALTH_CHECK_MODES_SUPPORTING_REASONING_EFFORT = frozenset(
-    (None, "chat", "completion")
-)
+_GENERATIVE_HEALTH_CHECK_MODES = frozenset((None, "chat", "completion", "responses"))
+_MIN_HEALTH_CHECK_OUTPUT_TOKENS = 16
+_DEFAULT_REASONING_HEALTH_CHECK_OUTPUT_TOKENS = 256
 
 
 def _get_process_rss_mb() -> Optional[float]:
@@ -321,6 +316,10 @@ def _resolve_health_check_max_tokens(
     """
     Pick max_tokens for the health check request.
 
+    Values are clamped to a provider-safe minimum: 16 for ordinary generation
+    and 256 for reasoning models. This prevents an explicit or environment
+    value such as 1 from making the probe itself invalid.
+
     Priority:
     1. model_info.health_check_max_tokens (explicit override)
     2. For non-wildcard routes: health_check_max_tokens_reasoning / _non_reasoning
@@ -328,38 +327,49 @@ def _resolve_health_check_max_tokens(
     3. For non-wildcard reasoning routes: BACKGROUND_HEALTH_CHECK_MAX_TOKENS_REASONING
        from env (if set)
     4. BACKGROUND_HEALTH_CHECK_MAX_TOKENS (global, any route including wildcards)
-    5. Non-wildcard default: 5
+    5. Non-wildcard model-safe default
     6. Wildcard and nothing from (1)(4): leave unset (caller omits max_tokens)
     """
-    explicit = model_info.get("health_check_max_tokens", None)
-    if explicit is not None:
-        return int(explicit)
-
     is_wildcard = _health_check_deployment_is_wildcard(litellm_params)
     deployment_model = _deployment_model_string_for_health_check(litellm_params)
+    is_reasoning = False
 
     if not is_wildcard:
         try:
             is_reasoning = litellm.supports_reasoning(deployment_model)
         except Exception:
             is_reasoning = False
+
+    minimum_tokens = (
+        _DEFAULT_REASONING_HEALTH_CHECK_OUTPUT_TOKENS
+        if is_reasoning
+        else _MIN_HEALTH_CHECK_OUTPUT_TOKENS
+    )
+
+    explicit = model_info.get("health_check_max_tokens", None)
+    if explicit is not None:
+        return max(int(explicit), minimum_tokens)
+
+    if not is_wildcard:
         tokens_reasoning = model_info.get("health_check_max_tokens_reasoning", None)
         tokens_non_reasoning = model_info.get(
             "health_check_max_tokens_non_reasoning", None
         )
         if tokens_reasoning is not None or tokens_non_reasoning is not None:
             if is_reasoning and tokens_reasoning is not None:
-                return int(tokens_reasoning)
+                return max(int(tokens_reasoning), minimum_tokens)
             if not is_reasoning and tokens_non_reasoning is not None:
-                return int(tokens_non_reasoning)
+                return max(int(tokens_non_reasoning), minimum_tokens)
         if is_reasoning and BACKGROUND_HEALTH_CHECK_MAX_TOKENS_REASONING is not None:
-            return int(BACKGROUND_HEALTH_CHECK_MAX_TOKENS_REASONING)
+            return max(
+                int(BACKGROUND_HEALTH_CHECK_MAX_TOKENS_REASONING), minimum_tokens
+            )
 
     if BACKGROUND_HEALTH_CHECK_MAX_TOKENS is not None:
-        return int(BACKGROUND_HEALTH_CHECK_MAX_TOKENS)
+        return max(int(BACKGROUND_HEALTH_CHECK_MAX_TOKENS), minimum_tokens)
 
     if not is_wildcard:
-        return 5
+        return minimum_tokens
 
     return None
 
@@ -370,21 +380,28 @@ def _update_litellm_params_for_health_check(
     """
     Update the litellm params for health check.
 
-    - gets a short `messages` param for health check
+    - gets short generation params only for generation modes
     - updates the `model` param with the `health_check_model` if it exists Doc: https://docs.litellm.ai/docs/proxy/health#wildcard-routes
     - updates the `voice` param with the `health_check_voice` for `audio_speech` mode if it exists Doc: https://docs.litellm.ai/docs/proxy/health#text-to-speech-models
     - for Bedrock models with region routing (bedrock/region/model), strips the litellm routing prefix but preserves the model ID
     """
-    litellm_params["messages"] = _get_random_llm_message()
-    _resolved_max_tokens = _resolve_health_check_max_tokens(model_info, litellm_params)
-    if _resolved_max_tokens is not None:
-        litellm_params["max_tokens"] = _resolved_max_tokens
-
-    # Per-model reasoning effort for health checks only (e.g. reasoning_effort=none).
-    if model_info.get("mode", None) in _HEALTH_CHECK_MODES_SUPPORTING_REASONING_EFFORT:
-        _hc_reasoning_effort = model_info.get("health_check_reasoning_effort", None)
-        if _hc_reasoning_effort is not None:
-            litellm_params["reasoning_effort"] = _hc_reasoning_effort
+    mode = model_info.get("mode", None)
+    if mode in _GENERATIVE_HEALTH_CHECK_MODES:
+        litellm_params["messages"] = _get_random_llm_message()
+        resolved_max_tokens = _resolve_health_check_max_tokens(
+            model_info, litellm_params
+        )
+        if resolved_max_tokens is not None:
+            litellm_params["max_tokens"] = resolved_max_tokens
+        health_check_reasoning_effort = model_info.get(
+            "health_check_reasoning_effort", None
+        )
+        if health_check_reasoning_effort is not None:
+            litellm_params["reasoning_effort"] = health_check_reasoning_effort
+    else:
+        # Generation-only fields are invalid for embedding and other typed APIs.
+        for key in ("messages", "max_tokens", "reasoning_effort"):
+            litellm_params.pop(key, None)
 
     _health_check_model = model_info.get("health_check_model", None)
     if _health_check_model is not None:
