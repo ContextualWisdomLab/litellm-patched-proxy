@@ -25,6 +25,7 @@
 
 - 개발 게이트웨이에서 `2026-08-04T12:45:57.228643Z`에 spend writer의 Prisma `P2028` transaction start 실패가 재발했습니다.
 - transaction body timeout은 60초였지만 connection checkout은 기본 `max_wait=2s`를 유지했습니다. 설치된 런타임은 실패 시점의 exception class, checkout 경과 시간, query-engine 상태, pool counter 및 연속 실패 횟수를 남기지 않아 개별 `SELECT 1` 지연 원인을 분리할 수 없었습니다.
+- `2026-08-04T19:07:33Z`에는 장시간 증가한 query-engine 메모리로 child process가 OOM 종료된 뒤 reconnect가 발생했습니다. 이 overlay는 메모리 증가 자체를 수정하지 않으며, 다음 재발 시 low-level failure branch와 event-time pool 상태를 입증하기 위한 진단 범위를 확장합니다.
 
 ### 변경 사항
 
