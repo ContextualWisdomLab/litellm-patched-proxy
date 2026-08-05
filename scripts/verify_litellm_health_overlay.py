@@ -36,6 +36,13 @@ EXPECTED_WATCHDOG_TOKENS = [
     "pool_wait_histogram_le_1000=%s pool_wait_histogram_le_5000=%s",
     "pool_target=%s",
     "pool_metrics_error_type=%s",
+    "Prisma DB reconnect preflight before destructive action.",
+    "trigger_type=%s exception_type=%s",
+    "trigger_elapsed_ms=%s request_elapsed_ms=%s",
+    "diagnostics_elapsed_ms=%s consecutive_reconnect_failures=%s",
+    "engine_rss_bytes=%s engine_vmsize_bytes=%s",
+    "cgroup_memory_current_bytes=%s cgroup_memory_peak_bytes=%s",
+    "cgroup_oom_kill_count=%s",
 ]
 EXPECTED_SPEND_WRITER_TOKENS = [
     "event=prisma_spend_transaction_failure",
@@ -121,6 +128,35 @@ def verify_watchdog(path: Path) -> None:
     missing = [token for token in EXPECTED_WATCHDOG_TOKENS if token not in source]
     if missing:
         fail(f"watchdog observability tokens are missing: {missing!r}")
+
+    tree = ast.parse(source, filename=str(path))
+    reconnect_functions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.AsyncFunctionDef)
+        and node.name == "_attempt_reconnect_inside_lock"
+    ]
+    if len(reconnect_functions) != 1:
+        fail("expected exactly one _attempt_reconnect_inside_lock function")
+
+    diagnostics_calls = [
+        node
+        for node in ast.walk(reconnect_functions[0])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "_get_db_watchdog_diagnostics"
+    ]
+    reconnect_calls = [
+        node
+        for node in ast.walk(reconnect_functions[0])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "_run_reconnect_cycle"
+    ]
+    if len(diagnostics_calls) != 1 or len(reconnect_calls) != 1:
+        fail("reconnect preflight must capture diagnostics before one reconnect cycle")
+    if diagnostics_calls[0].lineno >= reconnect_calls[0].lineno:
+        fail("reconnect diagnostics must be captured before destructive reconnect")
 
 
 def verify_spend_writer(path: Path) -> None:

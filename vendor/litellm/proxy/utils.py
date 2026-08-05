@@ -3954,6 +3954,11 @@ class PrismaClient:
             "engine_state": "unavailable",
             "engine_started_at": "unavailable",
             "engine_process_error_type": "none",
+            "engine_rss_bytes": "unavailable",
+            "engine_vmsize_bytes": "unavailable",
+            "cgroup_memory_current_bytes": "unavailable",
+            "cgroup_memory_peak_bytes": "unavailable",
+            "cgroup_oom_kill_count": "unavailable",
             "pool_active": "unavailable",
             "pool_wait": "unavailable",
             "pool_busy": "unavailable",
@@ -3998,6 +4003,48 @@ class PrismaClient:
             ).isoformat()
         except Exception as process_error:
             diagnostics["engine_process_error_type"] = type(process_error).__name__
+
+        try:
+            process_memory: Dict[str, int] = {}
+            with open(f"/proc/{pid}/status", "r") as proc_status:
+                for raw_line in proc_status:
+                    key, separator, value = raw_line.partition(":")
+                    if key not in {"VmRSS", "VmSize"} or not separator:
+                        continue
+                    fields = value.split()
+                    if len(fields) != 2 or fields[1] != "kB":
+                        raise ValueError("unexpected query-engine memory unit")
+                    process_memory[key] = int(fields[0]) * 1024
+            diagnostics["engine_rss_bytes"] = process_memory.get("VmRSS", "unavailable")
+            diagnostics["engine_vmsize_bytes"] = process_memory.get(
+                "VmSize", "unavailable"
+            )
+        except Exception as process_memory_error:
+            if diagnostics["engine_process_error_type"] == "none":
+                diagnostics["engine_process_error_type"] = type(
+                    process_memory_error
+                ).__name__
+
+        try:
+            cgroup_root = "/sys/fs/cgroup"
+            with open(f"{cgroup_root}/memory.current", "r") as memory_current:
+                diagnostics["cgroup_memory_current_bytes"] = int(
+                    memory_current.read().strip()
+                )
+            with open(f"{cgroup_root}/memory.peak", "r") as memory_peak:
+                diagnostics["cgroup_memory_peak_bytes"] = int(
+                    memory_peak.read().strip()
+                )
+            with open(f"{cgroup_root}/memory.events", "r") as memory_events:
+                event_values = {
+                    key: int(value)
+                    for key, value in (line.split(maxsplit=1) for line in memory_events)
+                }
+            diagnostics["cgroup_oom_kill_count"] = event_values.get(
+                "oom_kill", "unavailable"
+            )
+        except Exception:
+            pass
 
         try:
             with open(f"/proc/{pid}/cmdline", "rb") as proc_cmdline:
@@ -4396,6 +4443,10 @@ class PrismaClient:
         force: bool,
         reason: str,
         timeout_seconds: Optional[float],
+        trigger_type: str,
+        trigger_exception_type: str,
+        trigger_elapsed_ms: Union[int, str],
+        request_started_monotonic: float,
     ) -> bool:
         now = time.time()
         if (
@@ -4422,8 +4473,61 @@ class PrismaClient:
             )
             self._engine_confirmed_dead = True
 
+        diagnostics_started = time.perf_counter()
+        diagnostics = self._get_db_watchdog_diagnostics()
+        diagnostics_elapsed_ms = int(
+            round((time.perf_counter() - diagnostics_started) * 1000)
+        )
+        request_elapsed_ms = int(
+            round((time.perf_counter() - request_started_monotonic) * 1000)
+        )
         verbose_proxy_logger.warning(
-            "Attempting Prisma DB reconnect. reason=%s", reason
+            "Prisma DB reconnect preflight before destructive action. "
+            "reason=%s force=%s trigger_type=%s exception_type=%s "
+            "trigger_elapsed_ms=%s request_elapsed_ms=%s "
+            "diagnostics_elapsed_ms=%s consecutive_reconnect_failures=%s "
+            "engine_pid=%s engine_port=%s engine_alive=%s engine_state=%s "
+            "engine_started_at=%s engine_process_error_type=%s "
+            "engine_rss_bytes=%s engine_vmsize_bytes=%s "
+            "cgroup_memory_current_bytes=%s cgroup_memory_peak_bytes=%s "
+            "cgroup_oom_kill_count=%s "
+            "pool_active=%s pool_wait=%s pool_busy=%s pool_idle=%s "
+            "pool_open=%s pool_opened_total=%s pool_closed_total=%s "
+            "pool_wait_histogram_count=%s pool_wait_histogram_sum_ms=%s "
+            "pool_wait_histogram_le_1000=%s pool_wait_histogram_le_5000=%s "
+            "pool_target=%s pool_metrics_error_type=%s",
+            reason,
+            force,
+            trigger_type,
+            trigger_exception_type,
+            trigger_elapsed_ms,
+            request_elapsed_ms,
+            diagnostics_elapsed_ms,
+            self._consecutive_reconnect_failures,
+            diagnostics["engine_pid"],
+            diagnostics["engine_port"],
+            diagnostics["engine_alive"],
+            diagnostics["engine_state"],
+            diagnostics["engine_started_at"],
+            diagnostics["engine_process_error_type"],
+            diagnostics["engine_rss_bytes"],
+            diagnostics["engine_vmsize_bytes"],
+            diagnostics["cgroup_memory_current_bytes"],
+            diagnostics["cgroup_memory_peak_bytes"],
+            diagnostics["cgroup_oom_kill_count"],
+            diagnostics["pool_active"],
+            diagnostics["pool_wait"],
+            diagnostics["pool_busy"],
+            diagnostics["pool_idle"],
+            diagnostics["pool_open"],
+            diagnostics["pool_opened_total"],
+            diagnostics["pool_closed_total"],
+            diagnostics["pool_wait_histogram_count"],
+            diagnostics["pool_wait_histogram_sum_ms"],
+            diagnostics["pool_wait_histogram_le_1000"],
+            diagnostics["pool_wait_histogram_le_5000"],
+            diagnostics["pool_target"],
+            diagnostics["pool_metrics_error_type"],
         )
 
         reconnect_succeeded = False
@@ -4453,6 +4557,9 @@ class PrismaClient:
         force: bool = False,
         timeout_seconds: Optional[float] = None,
         lock_timeout_seconds: Optional[float] = None,
+        trigger_type: Optional[str] = None,
+        trigger_exception_type: str = "none",
+        trigger_elapsed_ms: Optional[int] = None,
     ) -> bool:
         """
         Attempt to reconnect the Prisma client in a singleflight manner.
@@ -4460,7 +4567,12 @@ class PrismaClient:
         Returns:
             bool: True if reconnection succeeded, else False.
         """
+        request_started_monotonic = time.perf_counter()
         now = time.time()
+        resolved_trigger_type = trigger_type or reason
+        resolved_trigger_elapsed_ms: Union[int, str] = (
+            trigger_elapsed_ms if trigger_elapsed_ms is not None else "unavailable"
+        )
         if (
             force is False
             and now - self._db_last_reconnect_attempt_ts
@@ -4475,7 +4587,13 @@ class PrismaClient:
         if lock_timeout_seconds is None:
             async with self._db_reconnect_lock:
                 return await self._attempt_reconnect_inside_lock(
-                    force, reason, timeout_seconds
+                    force,
+                    reason,
+                    timeout_seconds,
+                    resolved_trigger_type,
+                    trigger_exception_type,
+                    resolved_trigger_elapsed_ms,
+                    request_started_monotonic,
                 )
 
         lock_acquired_by_timeout_task = False
@@ -4526,7 +4644,13 @@ class PrismaClient:
 
         try:
             return await self._attempt_reconnect_inside_lock(
-                force, reason, timeout_seconds
+                force,
+                reason,
+                timeout_seconds,
+                resolved_trigger_type,
+                trigger_exception_type,
+                resolved_trigger_elapsed_ms,
+                request_started_monotonic,
             )
         finally:
             self._db_reconnect_lock.release()
@@ -4642,6 +4766,9 @@ class PrismaClient:
                     await self.attempt_db_reconnect(
                         reason=reconnect_reason,
                         timeout_seconds=self._db_watchdog_reconnect_timeout_seconds,
+                        trigger_type=failure_kind,
+                        trigger_exception_type=type(e).__name__,
+                        trigger_elapsed_ms=elapsed_ms,
                     )
                 else:
                     verbose_proxy_logger.debug(

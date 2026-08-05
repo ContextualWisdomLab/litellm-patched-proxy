@@ -1,5 +1,26 @@
 # 변경 이력
 
+## 2026-08-06 KST - Prisma OOM initiating query and reconnect preflight evidence
+
+### 장애 근거
+
+- 개발 게이트웨이는 background_health_checks=True, 300초 주기로 동작하지만 배포된 LiteLLM 1.83.7의 get_all_latest_health_checks()는 LiteLLM_HealthCheckTable 전체를 매 주기 읽고 Python에서 최신 행을 고릅니다.
+- 2026-08-05T15:14Z 기준 이 테이블은 506,773행이고 최신 상태는 78개 모델뿐입니다. 배포 코드에는 복합 최신 상태 인덱스도 없습니다.
+- 상태 변경 기록의 5분 주기와 일치하는 2026-08-04T19:07:33Z에 query-engine이 private anonymous RSS 약 7.0GiB까지 증가해 swap 없는 15GiB 호스트에서 global OOM으로 종료됐습니다. Langfuse 콜백 오류는 약 9초 먼저 기록됐지만 메모리 할당 원인으로 입증되지 않았고, Prisma reconnect와 PgCat session close는 OOM 뒤에 발생했습니다.
+
+### 변경 사항
+
+- DB-side distinct와 결정적 정렬, 최신 상태 복합 인덱스를 포함한 기존 overlay를 실제 이미지에 유지해 50만여 행의 반복 역직렬화를 제거합니다.
+- 모든 destructive Prisma reconnect 직전에 trigger/exception type, trigger 및 lock 대기 경과시간, 연속 실패 수, 이전 query-engine PID/port/state/start time, RSS/VSZ, cgroup current/peak/OOM count와 전체 pool/wait histogram을 한 번 기록합니다.
+- 진단은 추가 DB query를 실행하지 않고 query-engine local metrics와 procfs/cgroup만 200ms 제한으로 읽습니다. 진단 실패는 reconnect를 차단하지 않습니다.
+- 구조 검증기는 진단 수집이 _run_reconnect_cycle()보다 앞에 있는지 AST로 확인합니다.
+
+### 검증 및 롤백
+
+- vendored Python source compile, overlay structure verification 및 diff 검사를 통과했습니다. PR 이미지 빌드와 Trivy CRITICAL/HIGH 0건 게이트가 추가 검증합니다.
+- 배포 전까지 런타임과 DB는 변경하지 않습니다. dev에 먼저 immutable digest를 적용하고 readiness/liveliness, 실모델 호출, query-engine RSS, 5분 상태 점검 주기와 오류 창을 확인합니다.
+- 회귀 시 직전 immutable image digest로 복귀합니다. 최신 상태 인덱스는 읽기 경로를 지원하므로 이미지 롤백과 독립적으로 유지하며, 제거가 필요하면 승인된 유지보수 창에서만 DROP INDEX CONCURRENTLY를 사용합니다.
+
 ## 2026-08-05 KST - Langfuse dynamic callback None guard
 
 ### 장애 근거
