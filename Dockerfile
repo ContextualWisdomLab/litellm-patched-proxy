@@ -22,6 +22,10 @@ ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a1409
 #   Pillow>=12.2.0            fixes CVE-2026-40192, CVE-2026-42311
 #   python-multipart>=0.0.30  fixes CVE-2026-24486, CVE-2026-42561, CVE-2026-53539
 #   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
+#   RestrictedPython==8.3     fixes CVE-2026-55830
+#   aiohttp==3.14.3           fixes CVE-2026-69244
+#   cryptography==50.0.1      fixes CVE-2026-69247, CVE-2026-69249
+#   mcp/pyasn1/pypdf          fix the current Trivy HIGH findings at their first fixed releases
 #   litellm==1.84.10          fixes CVE-2026-40217, CVE-2026-49468 and bounds version drift
 RUN apk_retry() { \
         attempt=1; \
@@ -31,15 +35,22 @@ RUN apk_retry() { \
           attempt=$((attempt + 1)); \
         done; \
       } \
-    && apk_retry add --no-cache curl jq python3 py3-pip ffmpeg \
-    && apk_retry upgrade --no-cache \
-    && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
-    && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir \
+    && apk_retry add --no-cache curl jq ffmpeg \
+         "busybox=1.38.0-r2" \
+         "libcrypto3=3.6.4-r1" \
+         "libexpat1=2.8.4-r0" \
+         "libssl3=3.6.4-r1" \
+         "openssl=3.6.4-r1" \
+         "python-3.13=3.13.14-r3" \
+         "python-3.13-base=3.13.14-r3" \
+    && /app/.venv/bin/python3 -m ensurepip --upgrade \
+    && /app/.venv/bin/python3 -m pip install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
+    && /app/.venv/bin/python3 -m pip install --no-cache-dir \
          "litellm==1.84.10" \
          "fastapi==0.139.2" \
          "starlette==1.3.1" \
          "PyJWT==2.13.0" \
-         "cryptography==48.0.1" \
+         "cryptography==50.0.1" \
          "ddtrace==4.8.2" \
          "semantic-router==0.1.15" \
          "tornado==6.5.6" \
@@ -47,19 +58,26 @@ RUN apk_retry() { \
          "Pillow>=12.2.0" \
          "python-multipart>=0.0.30" \
          "urllib3>=2.7.0" \
+         "RestrictedPython==8.3" \
+         "aiohttp==3.14.3" \
+         "mcp==1.28.1" \
+         "msal==1.38.0" \
+         "pyasn1==0.6.4" \
+         "pypdf==6.14.2" \
+    && /app/.venv/bin/python3 -m pip check \
     && rm -rf /root/.cache
 
 # Overlay reviewed fixes from immutable fork commits onto the pinned package.
 RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/usr/local/bin/verify-litellm-health-overlay,ro \
     tmpdir="$(mktemp -d)" \
     && pkg_root="$(/app/.venv/bin/python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/caching/redis_cache.py" -o "$tmpdir/redis_cache.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/router_strategy/lowest_latency.py" -o "$tmpdir/lowest_latency.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/constants.py" -o "$tmpdir/constants.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/health_check.py" -o "$tmpdir/health_check.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/proxy_server.py" -o "$tmpdir/proxy_server.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/utils.py" -o "$tmpdir/utils.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/schema.prisma" -o "$tmpdir/schema.prisma" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/seonghobae/litellm/${LITELLM_PATCH_COMMIT}/litellm/caching/redis_cache.py" -o "$tmpdir/redis_cache.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/seonghobae/litellm/${LITELLM_PATCH_COMMIT}/litellm/router_strategy/lowest_latency.py" -o "$tmpdir/lowest_latency.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/seonghobae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/constants.py" -o "$tmpdir/constants.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/seonghobae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/health_check.py" -o "$tmpdir/health_check.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/seonghobae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/proxy_server.py" -o "$tmpdir/proxy_server.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/seonghobae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/utils.py" -o "$tmpdir/utils.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/seonghobae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/schema.prisma" -o "$tmpdir/schema.prisma" \
     && printf '%s  %s\n' "$LITELLM_REDIS_CACHE_SHA256" "$tmpdir/redis_cache.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_LOWEST_LATENCY_SHA256" "$tmpdir/lowest_latency.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_CONSTANTS_SHA256" "$tmpdir/constants.py" | sha256sum -c - \
@@ -95,4 +113,5 @@ RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.np
     | while IFS= read -r d; do \
         rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/sigstore.tgz --strip-components=1 -C "$d" || exit 1; \
       done \
-    && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz
+    && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz \
+    && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx

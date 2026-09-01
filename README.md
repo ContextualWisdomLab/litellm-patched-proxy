@@ -1,7 +1,7 @@
-# pre-secured-llm-proxy
+# litellm-patched-proxy
 
-Builds and publishes a pre-secured LiteLLM image to GHCR with vulnerability
-scanning evidence.
+Builds and publishes a downstream LiteLLM proxy image with maintained production
+patches and vulnerability-scanning evidence.
 
 ## Scope
 
@@ -21,7 +21,7 @@ Current reduction strategy is conservative:
 
 ## Published image
 
-- GHCR package: `ghcr.io/seongho-bae/pre-secured-llm-proxy`
+- GHCR package: `ghcr.io/contextualwisdomlab/litellm-patched-proxy`
 
 ## Tagging
 
@@ -54,7 +54,7 @@ at a concrete issue instead of a failing workflow log.
 
 ## Notes
 
-- This repository intentionally avoids organization/customer-specific product
-  naming beyond the neutral `pre-secured` prefix.
+- Downstream patches remain here only until an equivalent upstream fix is
+  available in the pinned LiteLLM base image.
 - Runtime deployment cutovers are tracked in the incident/operations repository,
   not here.
