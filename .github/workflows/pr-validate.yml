@@ -7,7 +7,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  IMAGE_NAME: ghcr.io/contextualwisdomlab/pre-secured-llm-proxy
+  IMAGE_NAME: ghcr.io/contextualwisdomlab/litellm-patched-proxy
 
 permissions:
   contents: read

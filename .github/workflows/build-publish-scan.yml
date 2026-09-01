@@ -11,7 +11,7 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/contextualwisdomlab/pre-secured-llm-proxy
+  IMAGE_NAME: ghcr.io/contextualwisdomlab/litellm-patched-proxy
 
 jobs:
   build-publish:

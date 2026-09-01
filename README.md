@@ -21,7 +21,7 @@ Current reduction strategy is conservative:
 
 ## Published image
 
-- GHCR package: `ghcr.io/contextualwisdomlab/pre-secured-llm-proxy`
+- GHCR package: `ghcr.io/contextualwisdomlab/litellm-patched-proxy`
 
 ## Tagging
 
