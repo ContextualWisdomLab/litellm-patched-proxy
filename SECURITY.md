@@ -2,7 +2,7 @@
 
 ## Scope
 
-This repository builds and publishes a pre-secured LiteLLM image to GHCR.
+This repository builds and publishes a downstream patched LiteLLM image to GHCR.
 
 ## Reporting
 

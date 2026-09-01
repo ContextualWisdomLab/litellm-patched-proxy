@@ -178,7 +178,7 @@ jobs:
           context: .
           file: Dockerfile
           load: true
-          tags: local/pre-secured-llm-proxy:pr-${{ github.sha }}
+          tags: local/litellm-patched-proxy:pr-${{ github.sha }}
 
       - name: Set up Trivy
         uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514
@@ -192,7 +192,7 @@ jobs:
             --exit-code 0 \
             --format sarif \
             --output trivy-results.sarif \
-            local/pre-secured-llm-proxy:pr-${{ github.sha }}
+            local/litellm-patched-proxy:pr-${{ github.sha }}
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@b1722c1245f90604c2c348f9d1624af97ea8fc6e
@@ -209,7 +209,7 @@ jobs:
             --exit-code 0 \
             --format json \
             --output trivy-results.json \
-            local/pre-secured-llm-proxy:pr-${{ github.sha }}
+            local/litellm-patched-proxy:pr-${{ github.sha }}
 
       - name: Upload scan artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
