@@ -1,60 +1,55 @@
-# pre-secured-llm-proxy
+# litellm-patched-proxy
 
-Builds and publishes a pre-secured LiteLLM image to GHCR with vulnerability
-scanning evidence.
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ContextualWisdomLab/litellm-patched-proxy)
 
-## Scope
+Downstream LiteLLM proxy image with bounded health-check history queries and maintained production patches.
 
-This repository exists only to produce an immutable LiteLLM container image that:
+## Product responsibility
+
+This repository builds and publishes a hardened LiteLLM proxy image that:
 
 - stays pinned to the approved upstream LiteLLM base digest,
-- pre-bakes the runtime tools currently installed at container startup,
-- publishes to GHCR, and
-- records security-scan evidence in GitHub Actions and code scanning.
+- pre-bakes runtime tools that would otherwise be installed at container startup,
+- carries reviewed downstream patches such as bounded health-check history queries,
+- publishes commit-addressable image tags plus a content digest, and
+- records vulnerability-scan and SBOM evidence in GitHub Actions and code scanning.
 
-Current reduction strategy is conservative:
-
-- remove only packages that are not yet proven to be runtime requirements,
-- keep Python/LiteLLM + Hypercorn compatibility first,
-- coordinate any deployment-time wrapper changes in the incident/operations repo
-  before promoting the image into live runtime use.
+The reduction strategy is conservative: remove only packages that are not proven runtime requirements and preserve Python/LiteLLM + Hypercorn compatibility before promotion.
 
 ## Published image
 
 - GHCR package: `ghcr.io/seongho-bae/pre-secured-llm-proxy`
 
-## Tagging
+## Tagging and immutable identity
 
-- `edge` from the default branch
-- `sha-<gitsha>` for immutable CI traceability
-- semver tags when the repository itself is tagged
+- `edge` follows the default branch and is intentionally mutable.
+- `sha-<gitsha>` is derived from the source commit for CI traceability; the repository does not claim registry-level tag immutability.
+- semver tags are emitted when the repository itself is tagged.
+- the pushed OCI image digest reported by the build is the immutable content identity to retain for deployment or provenance evidence.
 
 ## Evidence
 
-The workflows upload:
+The workflows produce:
 
-- Trivy SARIF to GitHub code scanning
+- Trivy SARIF for GitHub code scanning
 - Trivy JSON scan artifacts
 - CycloneDX SBOM artifacts
+- the pushed OCI image digest in the build summary
 
-When HIGH/CRITICAL findings remain, the repository is intended to create or
-update a single remediation issue that is ready for GitHub AI/Copilot
-assignment.
+A separate workflow reads the Trivy artifact after PR validation or image publication. When HIGH/CRITICAL findings exist, it creates or updates one scope-keyed remediation issue with the exact source commit, workflow run, severity counts, and package/vulnerability table; when the scope becomes clean, it closes that issue.
 
-## GitHub AI remediation loop
+## Automated remediation loop
 
-This repository is intended to create or update a single remediation issue when
-Trivy reports HIGH/CRITICAL findings, so GitHub-native AI/Copilot can be pointed
-at a concrete issue instead of a failing workflow log.
+- Trivy findings create or update a deduplicated `copilot-candidate` remediation issue.
+- The repository attempts to assign GitHub Copilot to such issues; assignment failure is tolerated and is not remediation evidence.
+- Non-draft Copilot remediation PRs are configured for GitHub auto-merge with squash, but normal required checks and merge governance still decide whether integration can occur.
 
-- Trivy findings create or update a deduplicated remediation issue
-- Copilot is assigned automatically to AI-ready remediation issues
-- Copilot-created remediation PRs can be placed on GitHub auto-merge once the
-  required checks pass
+## Documentation
 
-## Notes
+See [`docs/index.md`](docs/index.md) for the repository-facing product, release, and verification landing page, or [Ask DeepWiki](https://deepwiki.com/ContextualWisdomLab/litellm-patched-proxy) for a navigable repository view.
 
-- This repository intentionally avoids organization/customer-specific product
-  naming beyond the neutral `pre-secured` prefix.
-- Runtime deployment cutovers are tracked in the incident/operations repository,
-  not here.
+## License and upstream provenance
+
+ContextualWisdomLab-authored source and documentation in this repository are licensed under the [MIT License](LICENSE).
+
+The distributed image also contains third-party software under independent terms. In particular, the Docker build overlays selected non-`enterprise/` LiteLLM source files from immutable fork commits; those paths inherit LiteLLM's MIT license and Berri AI attribution rather than this repository's grant. The build copies this repository's license and the retained upstream notice into `/usr/share/licenses/litellm-patched-proxy/` in the image. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the provenance boundary. Other base-image, Python, npm, and operating-system packages remain under their own licenses.

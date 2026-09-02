@@ -96,3 +96,6 @@ RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.np
         rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/sigstore.tgz --strip-components=1 -C "$d" || exit 1; \
       done \
     && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz
+
+# Carry repository and upstream attribution with the distributable image.
+COPY --chmod=0644 LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/litellm-patched-proxy/
