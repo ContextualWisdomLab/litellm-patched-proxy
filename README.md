@@ -45,3 +45,9 @@ When HIGH/CRITICAL findings remain, repository automation can create or update a
 ## Documentation
 
 See [`docs/index.md`](docs/index.md) for the repository-facing product, release, and verification landing page, or [Ask DeepWiki](https://deepwiki.com/ContextualWisdomLab/litellm-patched-proxy) for a navigable repository view.
+
+## License and upstream provenance
+
+ContextualWisdomLab-authored source and documentation in this repository are licensed under the [MIT License](LICENSE).
+
+The distributed image also contains third-party software under independent terms. In particular, the Docker build overlays selected non-`enterprise/` LiteLLM source files from immutable fork commits; those paths inherit LiteLLM's MIT license and Berri AI attribution rather than this repository's grant. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the retained upstream notice and provenance boundary. Other base-image, Python, npm, and operating-system packages remain under their own licenses.
