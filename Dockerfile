@@ -65,7 +65,7 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
     && printf '%s  %s\n' "$LITELLM_CONSTANTS_SHA256" "$tmpdir/constants.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_HEALTH_CHECK_SHA256" "$tmpdir/health_check.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_PROXY_SERVER_SHA256" "$tmpdir/proxy_server.py" | sha256sum -c - \
-    && printf '%s  %s\n' "$LITELLM_PROXY_UTILS_SHA256" "$tmpdir/utils.py" | sha256sum -c - \
+    && printf '%s  %s\n' "$LITELLM_PROXY_UTILS_SHA256" "$tmpdir/proxy_utils.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_SCHEMA_SHA256" "$tmpdir/schema.prisma" | sha256sum -c - \
     && install -m 0644 "$tmpdir/redis_cache.py" "$pkg_root/caching/redis_cache.py" \
     && install -m 0644 "$tmpdir/lowest_latency.py" "$pkg_root/router_strategy/lowest_latency.py" \
@@ -96,3 +96,6 @@ RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.np
         rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/sigstore.tgz --strip-components=1 -C "$d" || exit 1; \
       done \
     && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz
+
+# Carry repository and upstream attribution with the distributable image.
+COPY --chmod=0644 LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/litellm-patched-proxy/
