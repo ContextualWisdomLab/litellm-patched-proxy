@@ -1,23 +1,20 @@
-# pre-secured-llm-proxy
+# litellm-patched-proxy
 
-Builds and publishes a pre-secured LiteLLM image to GHCR with vulnerability
-scanning evidence.
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ContextualWisdomLab/litellm-patched-proxy)
 
-## Scope
+Downstream LiteLLM proxy image with bounded health-check history queries and maintained production patches.
 
-This repository exists only to produce an immutable LiteLLM container image that:
+## Product responsibility
+
+This repository builds and publishes a hardened LiteLLM proxy image that:
 
 - stays pinned to the approved upstream LiteLLM base digest,
-- pre-bakes the runtime tools currently installed at container startup,
-- publishes to GHCR, and
-- records security-scan evidence in GitHub Actions and code scanning.
+- pre-bakes runtime tools that would otherwise be installed at container startup,
+- carries reviewed downstream patches such as bounded health-check history queries,
+- publishes immutable CI-traceable image tags, and
+- records vulnerability-scan and SBOM evidence in GitHub Actions and code scanning.
 
-Current reduction strategy is conservative:
-
-- remove only packages that are not yet proven to be runtime requirements,
-- keep Python/LiteLLM + Hypercorn compatibility first,
-- coordinate any deployment-time wrapper changes in the incident/operations repo
-  before promoting the image into live runtime use.
+The reduction strategy is conservative: remove only packages that are not proven runtime requirements and preserve Python/LiteLLM + Hypercorn compatibility before promotion.
 
 ## Published image
 
@@ -31,30 +28,20 @@ Current reduction strategy is conservative:
 
 ## Evidence
 
-The workflows upload:
+The workflows produce:
 
-- Trivy SARIF to GitHub code scanning
+- Trivy SARIF for GitHub code scanning
 - Trivy JSON scan artifacts
 - CycloneDX SBOM artifacts
 
-When HIGH/CRITICAL findings remain, the repository is intended to create or
-update a single remediation issue that is ready for GitHub AI/Copilot
-assignment.
+When HIGH/CRITICAL findings remain, repository automation can create or update a deduplicated remediation issue so the finding is actionable rather than existing only in a workflow log.
 
-## GitHub AI remediation loop
+## Automated remediation loop
 
-This repository is intended to create or update a single remediation issue when
-Trivy reports HIGH/CRITICAL findings, so GitHub-native AI/Copilot can be pointed
-at a concrete issue instead of a failing workflow log.
+- Trivy findings create or update a deduplicated remediation issue.
+- GitHub-native AI/Copilot can be assigned to AI-ready remediation work.
+- Remediation pull requests remain subject to the repository's required checks and merge governance.
 
-- Trivy findings create or update a deduplicated remediation issue
-- Copilot is assigned automatically to AI-ready remediation issues
-- Copilot-created remediation PRs can be placed on GitHub auto-merge once the
-  required checks pass
+## Documentation
 
-## Notes
-
-- This repository intentionally avoids organization/customer-specific product
-  naming beyond the neutral `pre-secured` prefix.
-- Runtime deployment cutovers are tracked in the incident/operations repository,
-  not here.
+See [`docs/index.md`](docs/index.md) for the repository-facing product, release, and verification landing page, or [Ask DeepWiki](https://deepwiki.com/ContextualWisdomLab/litellm-patched-proxy) for a navigable repository view.
