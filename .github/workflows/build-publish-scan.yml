@@ -4,6 +4,9 @@ on:
   push:
     branches: [develop]
     tags: ["v*"]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
   workflow_dispatch:
   schedule:
     - cron: "0 3 * * 1"
