@@ -15,6 +15,9 @@
 - 설정이 없거나 `null`이면 백그라운드 상태 점검 동시성을 기본 10개로 제한합니다. 명시한 양의 정수 값은 그대로 사용합니다.
 - 점검 주기 시작·완료, 모델 수, 설정된 동시성, 실제 최대 동시 실행 수, 실행 시간, 스레드 수와 RSS를 INFO 로그로 남깁니다.
 - 포크에서 가져오는 파일은 커밋 SHA와 파일별 SHA-256을 모두 검증한 뒤 설치합니다. 구조 검증기는 BuildKit 읽기 전용 bind mount로 빌드 단계에만 주입해 최종 이미지 레이어에 남기지 않습니다.
+- overlay 파일은 같은 불변 커밋과 SHA-256을 유지하면서 canonical public
+  supplier인 `BerriAI/litellm`에서 가져옵니다. 개인 fork raw URL의
+  unauthenticated 404를 제거하고 PR 정적 계약으로 재도입을 차단합니다.
 - 불변 기반 이미지의 기존 virtualenv와 새 시스템 Python/glibc가 어긋나던
   `apk upgrade` 경로를 제거했습니다. OS 패키지 수정은 실행 중 부분 업그레이드가
   아니라 검토된 새 기반 이미지 digest로 일괄 갱신하고, 이미지 빌드와 Trivy
