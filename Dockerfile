@@ -32,7 +32,6 @@ RUN apk_retry() { \
         done; \
       } \
     && apk_retry add --no-cache curl jq python3 py3-pip ffmpeg \
-    && apk_retry upgrade --no-cache \
     && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
     && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir \
          "litellm==1.84.10" \
@@ -99,3 +98,17 @@ RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.np
 
 # Carry repository and upstream attribution with the distributable image.
 COPY --chmod=0644 LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/litellm-patched-proxy/
+
+# Keep build-time mutation privileged, then run the proxy with a numeric
+# unprivileged identity. Preserve the inherited Prisma cache in writable
+# non-root locations used by common container deployments.
+RUN addgroup -S -g 10001 litellm \
+    && adduser -S -D -H -h /home/litellm -u 10001 -G litellm litellm \
+    && mkdir -p /home/litellm/.cache /app/.cache \
+    && cp -a /root/.cache/. /home/litellm/.cache/ \
+    && cp -a /root/.cache/. /app/.cache/ \
+    && chown -R 10001:10001 /home/litellm /app/.cache
+
+ENV HOME=/home/litellm
+
+USER 10001:10001

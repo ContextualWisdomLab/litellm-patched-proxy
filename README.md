@@ -11,6 +11,7 @@ This repository builds and publishes a hardened LiteLLM proxy image that:
 - stays pinned to the approved upstream LiteLLM base digest,
 - pre-bakes runtime tools that would otherwise be installed at container startup,
 - carries reviewed downstream patches such as bounded health-check history queries,
+- drops build-time root privileges before the proxy starts,
 - publishes commit-addressable image tags plus a content digest, and
 - records vulnerability-scan and SBOM evidence in GitHub Actions and code scanning.
 
@@ -40,7 +41,8 @@ A separate workflow reads the Trivy artifact after PR validation or image public
 
 ## Automated remediation loop
 
-- Trivy findings create or update a deduplicated `copilot-candidate` remediation issue.
+- HIGH/CRITICAL Trivy findings create or update a deduplicated
+  `copilot-candidate` remediation issue.
 - The repository attempts to assign GitHub Copilot to such issues; assignment failure is tolerated and is not remediation evidence.
 - Non-draft Copilot remediation PRs are configured for GitHub auto-merge with squash, but normal required checks and merge governance still decide whether integration can occur.
 
