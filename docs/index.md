@@ -27,7 +27,7 @@ A source change is not a release. `edge`, `sha-*`, and semver are registry tags 
 
 ## License and provenance
 
-ContextualWisdomLab-authored repository source and documentation are MIT-licensed. The downstream image also contains independently licensed software, including MIT-licensed LiteLLM source overlaid from immutable fork commits. The repository grant does not replace third-party terms. The build carries the repository license and retained upstream notice inside the image under `/usr/share/licenses/litellm-patched-proxy/`.
+ContextualWisdomLab-authored repository source and documentation are MIT-licensed. The downstream image also contains independently licensed software, including MIT-licensed LiteLLM source overlaid from immutable canonical upstream commits. The repository grant does not replace third-party terms. The build carries the repository license and retained upstream notice inside the image under `/usr/share/licenses/litellm-patched-proxy/`.
 
 - [Repository](https://github.com/ContextualWisdomLab/litellm-patched-proxy)
 - [README](https://github.com/ContextualWisdomLab/litellm-patched-proxy/blob/develop/README.md)

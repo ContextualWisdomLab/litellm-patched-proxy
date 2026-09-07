@@ -45,10 +45,9 @@ RUN apk_retry() { \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
          "python-multipart>=0.0.30" \
-         "urllib3>=2.7.0" \
-    && rm -rf /root/.cache
+         "urllib3>=2.7.0"
 
-# Overlay reviewed fixes from immutable fork commits onto the pinned package.
+# Overlay reviewed fixes from immutable canonical upstream commits.
 RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/usr/local/bin/verify-litellm-health-overlay,ro \
     tmpdir="$(mktemp -d)" \
     && pkg_root="$(/app/.venv/bin/python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
@@ -107,7 +106,8 @@ RUN addgroup -S -g 10001 litellm \
     && mkdir -p /home/litellm/.cache /app/.cache \
     && cp -a /root/.cache/. /home/litellm/.cache/ \
     && cp -a /root/.cache/. /app/.cache/ \
-    && chown -R 10001:10001 /home/litellm /app/.cache
+    && chown -R 10001:10001 /home/litellm /app/.cache \
+    && rm -rf /root/.cache
 
 ENV HOME=/home/litellm
 
