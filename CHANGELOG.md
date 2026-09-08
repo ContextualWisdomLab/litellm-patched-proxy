@@ -1,5 +1,28 @@
 # 변경 이력
 
+## 2026-09-08 KST - PR #2 exact-head Trivy HIGH/CRITICAL 잔여분
+
+### 장애 근거
+
+- PR #2 head `dceca31d96f342c4c280dbf2ab7a13ebc07eead8`의 `validate` job `101914116728`이 Trivy CRITICAL 2건, HIGH 81건으로 게이트를 닫았다. 이슈 #5가 이 exact-head 표를 보존한다.
+- venv에 `starlette==1.3.1`, `PyJWT==2.13.0`, `urllib3>=2.7.0`을 넣었는데도 Trivy는 `starlette 0.50.0`, `PyJWT 2.12.0`, `urllib3 2.6.3`을 보고했다. 프록시가 쓰지 않는 시스템 site-packages 복사본이 남았다.
+- npm `tar 7.5.11`이 CRITICAL `CVE-2026-59873`의 출처다. `brace-expansion`, `pacote`, `ip-address`도 같은 이미지에 구버전이 남아 있었다.
+- `cryptography==48.0.1`과 `tornado==6.5.6`은 각각 `CVE-2026-69247`/`CVE-2026-69249`, `CVE-2026-82397`이 열린 채였다.
+
+### 변경 사항
+
+- CVE가 비어 있는 버전으로 Python 패키지를 다시 고정한다. `cryptography==50.0.1`, `tornado==6.5.8`, `mcp==1.30.0`, `RestrictedPython==8.5`, `aiohttp==3.14.3`, `pyasn1==0.6.4`, `pypdf==6.18.0`, `setuptools==84.0.0`, `python-multipart==0.0.32`. mcp는 2.x가 아니라 1.30.0을 쓴다.
+- 같은 보안 핀을 앱 venv와 시스템 interpreter 양쪽에 설치해 Trivy가 구버전 복사본을 다시 세지 않게 한다.
+- npm `tar 7.5.22`, `brace-expansion 5.0.9`, `pacote 21.5.1`, `ip-address 10.7.0` tarball을 SHA-256 검증 후 기존 `node_modules` 트리에 덮어쓴다. pacote 22는 쓰지 않는다.
+- `openssl`, `libcrypto3`, `libssl3`, `busybox`만 `apk add`로 다시 넣는다. 전역 `apk upgrade`와 `python-3.13` in-place 교체는 하지 않는다. 인터프리터 CVE는 검토된 새 기반 digest가 들어올 때까지 남는다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- OSV 조회: 위 Python/npm 핀은 해당 버전에서 leftover CVE가 없다. `cryptography 49.0.0`과 `setuptools 78.1.1`은 아직 CVE가 남아 최신 핀을 택했다.
+- 이미지 Trivy 게이트는 이 head의 CI가 권위 있는 숫자다. 로컬에서 기반 이미지를 다시 빌드하지 않았다.
+
 ## 2026-07-17 KST - LiteLLM 백그라운드 상태 점검 부하 완화
 
 ### 장애 근거
