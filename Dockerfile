@@ -22,10 +22,10 @@ ARG IP_ADDRESS_SHA256=25a406ee4388fa3d47380ad57b816087fa82a681cc710cccbfe9162cff
 
 # Install OS packages, keep pinned functional deps, and upgrade Python packages
 # that carry HIGH/CRITICAL vulnerabilities shipped in the base image.
-# python-3.13 stays on the pinned base digest: a whole-index package refresh
-# mixed a newer interpreter with this venv and broke the ABI contract.
-# openssl/busybox are re-added so the rolling index can replace those
-# packages without touching python-3.13.
+# Already-installed Wolfi packages ignore a plain `apk add`; `--upgrade` on
+# the named CVE packages pulls openssl 3.6.3-r5, busybox 1.38.0-r0, and
+# python-3.13 3.13.14-r3. That is a 3.13 revision, not a whole-index refresh.
+# The interpreter major.minor must stay 3.13 so this venv ABI holds.
 RUN apk_retry() { \
         attempt=1; \
         while ! apk "$@"; do \
@@ -34,7 +34,10 @@ RUN apk_retry() { \
           attempt=$((attempt + 1)); \
         done; \
       } \
-    && apk_retry add --no-cache curl jq python3 py3-pip ffmpeg openssl libcrypto3 libssl3 busybox \
+    && apk_retry add --no-cache curl jq python3 py3-pip ffmpeg \
+    && apk_retry add --no-cache --upgrade \
+         openssl libcrypto3 libssl3 busybox python-3.13 python-3.13-base \
+    && /usr/bin/python3 -c 'import sys; assert sys.version_info[:2] == (3, 13), sys.version' \
     && pip_secure() { \
          /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "$@"; \
          /usr/bin/python3 -m pip install --no-cache-dir --break-system-packages "$@"; \
@@ -129,14 +132,18 @@ COPY --chmod=0644 LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/litellm-pat
 
 # Keep build-time mutation privileged, then run the proxy with a numeric
 # unprivileged identity. Preserve the inherited Prisma cache in writable
-# non-root locations used by common container deployments.
+# non-root locations used by common container deployments. Drop uv/pip
+# wheel archives first: Trivy treats their METADATA as installed packages.
 RUN addgroup -S -g 10001 litellm \
     && adduser -S -D -H -h /home/litellm -u 10001 -G litellm litellm \
+    && rm -rf /root/.cache/uv /root/.cache/pip \
     && mkdir -p /home/litellm/.cache /app/.cache \
     && cp -a /root/.cache/. /home/litellm/.cache/ \
     && cp -a /root/.cache/. /app/.cache/ \
     && chown -R 10001:10001 /home/litellm /app/.cache \
-    && rm -rf /root/.cache
+    && rm -rf /root/.cache \
+    && test ! -e /app/.cache/uv \
+    && test ! -e /home/litellm/.cache/uv
 
 ENV HOME=/home/litellm
 

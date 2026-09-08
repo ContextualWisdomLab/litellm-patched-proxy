@@ -1,5 +1,25 @@
 # 변경 이력
 
+## 2026-09-08 KST - uv 캐시 잔여분과 OS 패키지 개정
+
+### 장애 근거
+
+- PR #2 head `86704c3d7dcb18f958f421b5e7ea42d139ec343a`의 `validate` job `101950841606`(run `34191673554`)이 Trivy HIGH 56건으로 게이트를 닫았다. CRITICAL은 0건이다. 이슈 #5가 이 exact-head 표를 보존한다.
+- Python HIGH 48건의 `PkgPath`는 venv가 아니라 `app/.cache/uv/archive-v0/.../METADATA`와 `home/litellm/.cache/uv/archive-v0/.../METADATA`다. Prisma 캐시를 지키려 `/root/.cache`를 통째로 복사하면서 기반 이미지 uv 휠 보관함이 따라왔다.
+- OS HIGH 8건은 `apk add`만으로는 이미 설치된 패키지를 올리지 못한 결과다. openssl/libcrypto3/libssl3 `3.6.3-r2`(고정본 `3.6.3-r5`), busybox `1.37.0-r61`(고정본 `1.38.0-r0`), python-3.13/python-3.13-base `3.13.14-r0`(고정본 `3.13.14-r2`/`3.13.14-r3`).
+
+### 변경 사항
+
+- Prisma 캐시를 복사하기 전에 `/root/.cache/uv`와 `/root/.cache/pip`를 지운다. 복사 뒤에는 `/app/.cache/uv`와 `/home/litellm/.cache/uv`가 없는지를 빌드에서 확인한다.
+- 전역 `apk upgrade`는 쓰지 않는다. openssl, libcrypto3, libssl3, busybox, python-3.13, python-3.13-base만 `apk add --upgrade`한다. python major.minor는 3.13이어야 한다.
+- 런타임 계약 스크립트가 uv 캐시 삭제를 검사하고, 빠지면 fixture가 거절한다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- 이미지 Trivy 게이트는 이 head의 CI가 권위 있는 숫자다. 로컬에서 기반 이미지를 다시 빌드하지 않았다.
+
 ## 2026-09-08 KST - PR #2 exact-head Trivy HIGH/CRITICAL 잔여분
 
 ### 장애 근거

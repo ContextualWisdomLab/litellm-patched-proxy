@@ -27,8 +27,12 @@ expect_rejected() {
   fi
 }
 
-write_fixture valid 'RUN apk add --no-cache curl'
+write_fixture valid 'RUN apk add --no-cache curl
+RUN rm -rf /root/.cache/uv'
 sh "$check" "$workdir/valid"
+
+write_fixture missing_uv 'RUN apk add --no-cache curl'
+expect_rejected missing_uv
 
 write_fixture direct_apk 'RUN apk upgrade --no-cache'
 expect_rejected direct_apk

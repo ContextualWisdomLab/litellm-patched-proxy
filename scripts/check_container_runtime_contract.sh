@@ -8,6 +8,11 @@ if grep -Eq '(^|[^[:alnum:]_])apk(_retry)?[[:space:]]+upgrade([^[:alnum:]_]|$)' 
   exit 1
 fi
 
+if ! grep -Fq '/.cache/uv' "$dockerfile"; then
+  echo "Dockerfile must drop inherited uv wheel archives before copying caches." >&2
+  exit 1
+fi
+
 if grep -Fq 'raw.githubusercontent.com/Seongho-Bae/litellm/' "$dockerfile"; then
   echo "Dockerfile overlays must use the canonical public BerriAI/litellm supplier." >&2
   exit 1
