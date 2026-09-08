@@ -60,3 +60,19 @@ expect_rejected named_root
 
 write_fixture numeric_root 'RUN true' '0:10001'
 expect_rejected numeric_root
+
+repo_root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+if grep -R -F -q 'ghcr.io/seongho-bae/pre-secured-llm-proxy' \
+  "$repo_root/.github/workflows" "$repo_root/README.md" "$repo_root/docs/index.md"; then
+  echo "expected personal GHCR path to be absent from workflows and public docs" >&2
+  exit 1
+fi
+if ! grep -R -F -q 'IMAGE_NAME: ghcr.io/contextualwisdomlab/litellm-patched-proxy' \
+  "$repo_root/.github/workflows"; then
+  echo "expected org GHCR IMAGE_NAME in workflows" >&2
+  exit 1
+fi
+if grep -R -F -q 'local/pre-secured-llm-proxy:' "$repo_root/.github/workflows"; then
+  echo "expected local scan tags to use litellm-patched-proxy" >&2
+  exit 1
+fi

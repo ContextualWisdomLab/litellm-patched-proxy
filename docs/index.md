@@ -6,7 +6,7 @@
 
 ## What it provides
 
-- An upstream-digest-pinned LiteLLM proxy image.
+- An upstream-digest-pinned LiteLLM proxy image published as `ghcr.io/contextualwisdomlab/litellm-patched-proxy`.
 - Reviewed downstream patches, including bounded health-check history queries.
 - Commit-derived `sha-<gitsha>` tags plus default-branch `edge` publication.
 - A pushed OCI digest that serves as the immutable image content identity.

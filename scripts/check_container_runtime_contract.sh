@@ -45,3 +45,22 @@ case "$uid" in
     exit 1
     ;;
 esac
+
+script_dir="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
+workflows="$repo_root/.github/workflows"
+if [ -d "$workflows" ]; then
+  if grep -R -F -q 'ghcr.io/seongho-bae/pre-secured-llm-proxy' \
+    "$workflows" "$repo_root/README.md" "$repo_root/docs/index.md"; then
+    echo "published image must not use the personal pre-secured-llm-proxy GHCR path." >&2
+    exit 1
+  fi
+  if ! grep -R -F -q 'IMAGE_NAME: ghcr.io/contextualwisdomlab/litellm-patched-proxy' "$workflows"; then
+    echo "workflows must publish ghcr.io/contextualwisdomlab/litellm-patched-proxy." >&2
+    exit 1
+  fi
+  if grep -R -F -q 'local/pre-secured-llm-proxy:' "$workflows"; then
+    echo "local scan tags must use litellm-patched-proxy." >&2
+    exit 1
+  fi
+fi

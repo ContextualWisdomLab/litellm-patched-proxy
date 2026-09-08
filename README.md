@@ -19,7 +19,7 @@ The reduction strategy is conservative: remove only packages that are not proven
 
 ## Published image
 
-- GHCR package: `ghcr.io/seongho-bae/pre-secured-llm-proxy`
+- GHCR package: `ghcr.io/contextualwisdomlab/litellm-patched-proxy`
 
 ## Tagging and immutable identity
 

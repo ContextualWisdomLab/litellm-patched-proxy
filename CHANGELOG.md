@@ -1,5 +1,26 @@
 # 변경 이력
 
+## 2026-09-08 KST - 공개 이미지를 org GHCR로 맞춤
+
+### 장애 근거
+
+- PR #2 head `9dea8515aea58587c244d6c2827af1071d666e98`의 `validate` job `101982337843`은 통과했다. interpreter HIGH 4건은 이 digest 게이트에서 허용된다.
+- CodeQL compatibility analysis (actions/python)는 스캔 실패가 아니다. 디스패치 핸드셰이크가 `pending`이고 org `codeql-scan-dispatch` 큐가 밀려 있다. 이 사이클은 CI를 기다리지 않는다.
+- 저장소와 문서는 ContextualWisdomLab인데 워크플로 `IMAGE_NAME`과 README 패키지는 아직 `ghcr.io/seongho-bae/pre-secured-llm-proxy`다. PR #1이 남긴 유효한 공개 경로 변경을 스택 바닥에 넣는다.
+
+### 변경 사항
+
+- 게시 경로를 `ghcr.io/contextualwisdomlab/litellm-patched-proxy`로 바꾼다. 로컬 스캔 태그도 `local/litellm-patched-proxy`다.
+- 런타임 계약이 개인 네임스페이스 회귀를 거절한다. `AGENTS.md`에 소문자 GHCR 규칙을 남긴다.
+- PR #1 Dockerfile은 이 스택의 ABI·게이트 작업이 이미 대신하므로 가져오지 않는다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- `sh scripts/test_image_vulnerability_gate.sh`
+- 이미지 게이트 숫자의 권위는 직전 head `9dea851` validate다. 이 커밋은 패키지 경로만 바꾼다.
+
 ## 2026-09-08 KST - interpreter HIGH만 이미지 게이트에서 허용
 
 ### 장애 근거
