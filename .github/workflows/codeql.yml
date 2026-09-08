@@ -16,12 +16,12 @@ on:
     branches: [ "develop" ]
     paths-ignore:
       - "docs/**"
-      - "*.md"
+      - "**.md"
   pull_request:
     branches: [ "develop" ]
     paths-ignore:
       - "docs/**"
-      - "*.md"
+      - "**.md"
   schedule:
     - cron: '20 23 * * 0'
 

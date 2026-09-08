@@ -32,7 +32,6 @@ RUN apk_retry() { \
         done; \
       } \
     && apk_retry add --no-cache curl jq python3 py3-pip ffmpeg \
-    && apk_retry upgrade --no-cache \
     && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
     && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir \
          "litellm==1.84.10" \
@@ -46,20 +45,19 @@ RUN apk_retry() { \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
          "python-multipart>=0.0.30" \
-         "urllib3>=2.7.0" \
-    && rm -rf /root/.cache
+         "urllib3>=2.7.0"
 
-# Overlay reviewed fixes from immutable fork commits onto the pinned package.
+# Overlay reviewed fixes from immutable canonical upstream commits.
 RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/usr/local/bin/verify-litellm-health-overlay,ro \
     tmpdir="$(mktemp -d)" \
     && pkg_root="$(/app/.venv/bin/python3 -c 'import litellm, pathlib; print(pathlib.Path(litellm.__file__).resolve().parent)')" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/caching/redis_cache.py" -o "$tmpdir/redis_cache.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_PATCH_COMMIT}/litellm/router_strategy/lowest_latency.py" -o "$tmpdir/lowest_latency.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/constants.py" -o "$tmpdir/constants.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/health_check.py" -o "$tmpdir/health_check.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/proxy_server.py" -o "$tmpdir/proxy_server.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/utils.py" -o "$tmpdir/utils.py" \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/Seongho-Bae/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/schema.prisma" -o "$tmpdir/schema.prisma" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/BerriAI/litellm/${LITELLM_PATCH_COMMIT}/litellm/caching/redis_cache.py" -o "$tmpdir/redis_cache.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/BerriAI/litellm/${LITELLM_PATCH_COMMIT}/litellm/router_strategy/lowest_latency.py" -o "$tmpdir/lowest_latency.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/BerriAI/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/constants.py" -o "$tmpdir/constants.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/BerriAI/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/health_check.py" -o "$tmpdir/health_check.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/BerriAI/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/proxy_server.py" -o "$tmpdir/proxy_server.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/BerriAI/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/utils.py" -o "$tmpdir/utils.py" \
+    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://raw.githubusercontent.com/BerriAI/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/litellm/proxy/schema.prisma" -o "$tmpdir/schema.prisma" \
     && printf '%s  %s\n' "$LITELLM_REDIS_CACHE_SHA256" "$tmpdir/redis_cache.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_LOWEST_LATENCY_SHA256" "$tmpdir/lowest_latency.py" | sha256sum -c - \
     && printf '%s  %s\n' "$LITELLM_CONSTANTS_SHA256" "$tmpdir/constants.py" | sha256sum -c - \
@@ -96,3 +94,21 @@ RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.np
         rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/sigstore.tgz --strip-components=1 -C "$d" || exit 1; \
       done \
     && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz
+
+# Carry repository and upstream attribution with the distributable image.
+COPY --chmod=0644 LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/litellm-patched-proxy/
+
+# Keep build-time mutation privileged, then run the proxy with a numeric
+# unprivileged identity. Preserve the inherited Prisma cache in writable
+# non-root locations used by common container deployments.
+RUN addgroup -S -g 10001 litellm \
+    && adduser -S -D -H -h /home/litellm -u 10001 -G litellm litellm \
+    && mkdir -p /home/litellm/.cache /app/.cache \
+    && cp -a /root/.cache/. /home/litellm/.cache/ \
+    && cp -a /root/.cache/. /app/.cache/ \
+    && chown -R 10001:10001 /home/litellm /app/.cache \
+    && rm -rf /root/.cache
+
+ENV HOME=/home/litellm
+
+USER 10001:10001
