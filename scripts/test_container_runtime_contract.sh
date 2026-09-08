@@ -46,6 +46,15 @@ expect_rejected separator_apk
 write_fixture continued_apk '    && apk_retry upgrade --no-cache'
 expect_rejected continued_apk
 
+write_fixture python_upgrade 'RUN apk add --no-cache --upgrade python-3.13
+RUN rm -rf /root/.cache/uv'
+expect_rejected python_upgrade
+
+write_fixture python_upgrade_cont 'RUN apk_retry add --no-cache --upgrade \
+  openssl python-3.13-base
+RUN rm -rf /root/.cache/uv'
+expect_rejected python_upgrade_cont
+
 write_fixture named_root 'RUN true' 'root:litellm'
 expect_rejected named_root
 

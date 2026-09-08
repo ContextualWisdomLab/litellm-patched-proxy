@@ -8,6 +8,18 @@ if grep -Eq '(^|[^[:alnum:]_])apk(_retry)?[[:space:]]+upgrade([^[:alnum:]_]|$)' 
   exit 1
 fi
 
+joined="$(awk '{
+  if (sub(/\\[[:space:]]*$/, " ")) {
+    printf "%s", $0
+  } else {
+    print
+  }
+}' "$dockerfile")"
+if printf '%s\n' "$joined" | grep -Eq 'apk(_retry)?[[:space:]]+add.*--upgrade.*python-3\.13'; then
+  echo "Dockerfile must not replace python-3.13 in place; this digest lacks GLIBC_2.44." >&2
+  exit 1
+fi
+
 if ! grep -Fq '/.cache/uv' "$dockerfile"; then
   echo "Dockerfile must drop inherited uv wheel archives before copying caches." >&2
   exit 1

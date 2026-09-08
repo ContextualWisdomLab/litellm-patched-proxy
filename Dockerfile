@@ -22,10 +22,11 @@ ARG IP_ADDRESS_SHA256=25a406ee4388fa3d47380ad57b816087fa82a681cc710cccbfe9162cff
 
 # Install OS packages, keep pinned functional deps, and upgrade Python packages
 # that carry HIGH/CRITICAL vulnerabilities shipped in the base image.
-# Already-installed Wolfi packages ignore a plain `apk add`; `--upgrade` on
-# the named CVE packages pulls openssl 3.6.3-r5, busybox 1.38.0-r0, and
-# python-3.13 3.13.14-r3. That is a 3.13 revision, not a whole-index refresh.
-# The interpreter major.minor must stay 3.13 so this venv ABI holds.
+# Already-installed Wolfi packages ignore a plain `apk add`. Named
+# `--upgrade` pulls openssl 3.6.3-r5 and busybox 1.38.0-r0. Do not
+# replace python-3.13 in place: 3.13.14-r3 needs GLIBC_2.44, which this
+# base digest does not ship (validate job 101963192386). Interpreter
+# HIGH stays until a reviewed digest. Assert major.minor stays 3.13.
 RUN apk_retry() { \
         attempt=1; \
         while ! apk "$@"; do \
@@ -36,7 +37,7 @@ RUN apk_retry() { \
       } \
     && apk_retry add --no-cache curl jq python3 py3-pip ffmpeg \
     && apk_retry add --no-cache --upgrade \
-         openssl libcrypto3 libssl3 busybox python-3.13 python-3.13-base \
+         openssl libcrypto3 libssl3 busybox \
     && /usr/bin/python3 -c 'import sys; assert sys.version_info[:2] == (3, 13), sys.version' \
     && pip_secure() { \
          /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "$@"; \

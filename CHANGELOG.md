@@ -1,5 +1,25 @@
 # 변경 이력
 
+## 2026-09-08 KST - python-3.13 in-place 교체 철회
+
+### 장애 근거
+
+- PR #2 head `c7e3bb1273ca606b5cf3be9d20fc6282843bb101`의 `validate` job `101963192386`(run `34195821692`)이 이미지 빌드에서 실패했다. Trivy 숫자까지 가지 못했다.
+- `apk add --upgrade python-3.13 python-3.13-base`가 3.13.14-r3를 끌어왔고, 그 바이너리가 `GLIBC_2.44`를 요구한다. 이 기반 digest의 `/usr/lib/libm.so.6`에는 그 심볼이 없다.
+- 실패 지점은 `/usr/bin/python3 -m pip`다. 시스템 interpreter가 깨지면 venv 핀도 설치되지 않는다.
+
+### 변경 사항
+
+- openssl, libcrypto3, libssl3, busybox만 `--upgrade`한다. python-3.13과 python-3.13-base는 이 digest에 그대로 둔다.
+- 런타임 계약이 `apk add --upgrade` 줄에 python-3.13이 있으면 거절한다. 연속 줄 fixture로 재도입을 막는다.
+- uv 캐시 삭제는 그대로 둔다. interpreter HIGH는 검토된 새 기반 digest가 오기 전까지 남는다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- 이미지 Trivy 게이트는 이 head의 CI가 권위 있는 숫자다. 로컬에서 기반 이미지를 다시 빌드하지 않았다.
+
 ## 2026-09-08 KST - uv 캐시 잔여분과 OS 패키지 개정
 
 ### 장애 근거
