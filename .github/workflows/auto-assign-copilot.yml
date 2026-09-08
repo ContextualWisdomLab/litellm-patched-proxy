@@ -1,0 +1,22 @@
+name: Auto Assign Copilot
+
+on:
+  issues:
+    types: [opened, labeled, reopened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  assign:
+    if: contains(join(github.event.issue.labels.*.name, ','), 'copilot-candidate')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign Copilot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue edit ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --add-assignee @copilot || true
