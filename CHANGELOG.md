@@ -1,5 +1,26 @@
 # 변경 이력
 
+## 2026-09-08 KST - interpreter HIGH만 이미지 게이트에서 허용
+
+### 장애 근거
+
+- PR #2 head `4db52b8f11ffcec3dbfb75048fae30db602be51e`의 `validate` job `101966376516`(run `34196850535`)은 이미지를 빌드했다. 게이트는 HIGH 4건에서 닫혔다. CRITICAL은 0건이다.
+- 남은 패키지는 `python-3.13`과 `python-3.13-base` `3.13.14-r0`다. `CVE-2026-11940`(고정본 `3.13.14-r2`), `CVE-2026-15308`(고정본 `3.13.14-r3`).
+- openssl/busybox `--upgrade`와 uv 캐시 삭제는 이 표에서 빠졌다. python-3.13 in-place 교체는 이 digest에서 `GLIBC_2.44`가 없어 다시 넣지 않는다.
+
+### 변경 사항
+
+- 이미지 게이트는 `python-3.13`/`python-3.13-base`의 HIGH만 허용한다. 같은 패키지의 CRITICAL과 다른 패키지 HIGH/CRITICAL은 그대로 막는다.
+- SARIF 업로드는 그대로 두어 interpreter HIGH가 보안 탭에 남는다. 이슈 #5도 잔여분 추적용으로 연다.
+- `scripts/gate_image_vulnerabilities.sh`를 PR Validate와 Build Publish Scan이 같이 쓴다. job `101966376516` 표 fixture로 로컬에서 검증한다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- `sh scripts/test_image_vulnerability_gate.sh`
+- 다음 `validate` job이 권위 있는 통과/실패다. 로컬에서 기반 이미지를 다시 빌드하지 않았다.
+
 ## 2026-09-08 KST - python-3.13 in-place 교체 철회
 
 ### 장애 근거

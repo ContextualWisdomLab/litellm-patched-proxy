@@ -109,15 +109,7 @@ jobs:
             sbom.cdx.json
 
       - name: Fail on CRITICAL/HIGH vulnerabilities
-        run: |
-          COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy-results.json)
-          {
-            echo "## Vulnerability gate"
-            echo "- CRITICAL/HIGH count: **$COUNT**"
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$COUNT" -gt 0 ]; then
-            exit 1
-          fi
+        run: sh scripts/gate_image_vulnerabilities.sh trivy-results.json
 
       - name: Build and push image
         id: build
