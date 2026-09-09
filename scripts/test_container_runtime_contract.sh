@@ -1,0 +1,78 @@
+#!/bin/sh
+set -eu
+
+check="${1:-scripts/check_container_runtime_contract.sh}"
+workdir="$(mktemp -d)"
+trap 'rm -rf "$workdir"' EXIT HUP INT TERM
+
+write_fixture() {
+  name="$1"
+  body="$2"
+  user="${3:-10001:10001}"
+  {
+    printf '%s\n' 'ARG LITELLM_PATCH_COMMIT=patch'
+    printf '%s\n' 'ARG LITELLM_HEALTH_PATCH_COMMIT=health'
+    printf '%s\n' 'RUN curl https://raw.githubusercontent.com/BerriAI/litellm/${LITELLM_PATCH_COMMIT}/one'
+    printf '%s\n' 'RUN curl https://raw.githubusercontent.com/BerriAI/litellm/${LITELLM_HEALTH_PATCH_COMMIT}/two'
+    printf '%s\n' "$body"
+    printf 'USER %s\n' "$user"
+  } >"$workdir/$name"
+}
+
+expect_rejected() {
+  name="$1"
+  if sh "$check" "$workdir/$name" >/dev/null 2>&1; then
+    echo "expected $name to be rejected" >&2
+    exit 1
+  fi
+}
+
+write_fixture valid 'RUN apk add --no-cache curl
+RUN rm -rf /root/.cache/uv'
+sh "$check" "$workdir/valid"
+
+write_fixture missing_uv 'RUN apk add --no-cache curl'
+expect_rejected missing_uv
+
+write_fixture direct_apk 'RUN apk upgrade --no-cache'
+expect_rejected direct_apk
+
+write_fixture helper_apk 'RUN apk_retry upgrade --no-cache'
+expect_rejected helper_apk
+
+write_fixture separator_apk 'RUN true; apk upgrade'
+expect_rejected separator_apk
+
+write_fixture continued_apk '    && apk_retry upgrade --no-cache'
+expect_rejected continued_apk
+
+write_fixture python_upgrade 'RUN apk add --no-cache --upgrade python-3.13
+RUN rm -rf /root/.cache/uv'
+expect_rejected python_upgrade
+
+write_fixture python_upgrade_cont 'RUN apk_retry add --no-cache --upgrade \
+  openssl python-3.13-base
+RUN rm -rf /root/.cache/uv'
+expect_rejected python_upgrade_cont
+
+write_fixture named_root 'RUN true' 'root:litellm'
+expect_rejected named_root
+
+write_fixture numeric_root 'RUN true' '0:10001'
+expect_rejected numeric_root
+
+repo_root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+if grep -R -F -q 'ghcr.io/seongho-bae/pre-secured-llm-proxy' \
+  "$repo_root/.github/workflows" "$repo_root/README.md" "$repo_root/docs/index.md"; then
+  echo "expected personal GHCR path to be absent from workflows and public docs" >&2
+  exit 1
+fi
+if ! grep -R -F -q 'IMAGE_NAME: ghcr.io/contextualwisdomlab/litellm-patched-proxy' \
+  "$repo_root/.github/workflows"; then
+  echo "expected org GHCR IMAGE_NAME in workflows" >&2
+  exit 1
+fi
+if grep -R -F -q 'local/pre-secured-llm-proxy:' "$repo_root/.github/workflows"; then
+  echo "expected local scan tags to use litellm-patched-proxy" >&2
+  exit 1
+fi

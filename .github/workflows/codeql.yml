@@ -19,6 +19,14 @@ on:
   schedule:
     - cron: '20 23 * * 0'
 
+# G13: PR runs are isolated per PR number; a newer run cancels only its
+# superseded same-group run. Push/schedule runs share the empty-suffix group
+# and cancel only superseded same-kind runs. Publish/merge serialization lives
+# in the publish workflow, never here.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})

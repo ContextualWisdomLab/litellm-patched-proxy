@@ -8,10 +8,17 @@ on:
   schedule:
     - cron: "0 3 * * 1"
 
+# Publish/release path: never cancel. Concurrent publish runs queue behind the
+# running one and serialize on the exact head SHA (see Build summary digest).
+# No PR number belongs in this group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-publish
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/seongho-bae/pre-secured-llm-proxy
+  IMAGE_NAME: ghcr.io/contextualwisdomlab/litellm-patched-proxy
 
 jobs:
   build-publish:
@@ -56,7 +63,7 @@ jobs:
           context: .
           file: Dockerfile
           load: true
-          tags: local/pre-secured-llm-proxy:${{ github.sha }}
+          tags: local/litellm-patched-proxy:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -73,7 +80,7 @@ jobs:
             --exit-code 0 \
             --format sarif \
             --output trivy-results.sarif \
-            local/pre-secured-llm-proxy:${{ github.sha }}
+            local/litellm-patched-proxy:${{ github.sha }}
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@b1722c1245f90604c2c348f9d1624af97ea8fc6e
@@ -90,14 +97,14 @@ jobs:
             --exit-code 0 \
             --format json \
             --output trivy-results.json \
-            local/pre-secured-llm-proxy:${{ github.sha }}
+            local/litellm-patched-proxy:${{ github.sha }}
 
       - name: Generate CycloneDX SBOM
         run: |
           trivy image \
             --format cyclonedx \
             --output sbom.cdx.json \
-            local/pre-secured-llm-proxy:${{ github.sha }}
+            local/litellm-patched-proxy:${{ github.sha }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -109,15 +116,7 @@ jobs:
             sbom.cdx.json
 
       - name: Fail on CRITICAL/HIGH vulnerabilities
-        run: |
-          COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy-results.json)
-          {
-            echo "## Vulnerability gate"
-            echo "- CRITICAL/HIGH count: **$COUNT**"
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$COUNT" -gt 0 ]; then
-            exit 1
-          fi
+        run: sh scripts/gate_image_vulnerabilities.sh trivy-results.json
 
       - name: Build and push image
         id: build
