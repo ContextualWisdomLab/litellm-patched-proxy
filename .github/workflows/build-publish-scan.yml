@@ -8,6 +8,13 @@ on:
   schedule:
     - cron: "0 3 * * 1"
 
+# Publish/release path: never cancel. Concurrent publish runs queue behind the
+# running one and serialize on the exact head SHA (see Build summary digest).
+# No PR number belongs in this group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-publish
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REGISTRY: ghcr.io

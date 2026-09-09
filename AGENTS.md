@@ -40,3 +40,8 @@ patch no longer applies.
   needs `GLIBC_2.44`. Interpreter HIGH stays allowed until a reviewed base digest.
 - Validate workflow changes with `actionlint` and all changes with
   `git diff --check` before pushing.
+- Isolate PR validation runs per PR with
+  `concurrency.group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number }}`
+  and `cancel-in-progress: true`; publish/release workflows never cancel
+  (`cancel-in-progress: false`) and serialize. Restack stacked PRs with merge,
+  never force-push. Details: `docs/product-technical-gap-baseline.md` (G13).

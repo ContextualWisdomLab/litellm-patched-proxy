@@ -5,6 +5,14 @@ on:
     branches: [develop]
   workflow_dispatch:
 
+# G13: same PR validation runs share one group; a newer run cancels only its
+# superseded same-group run. Other workflows, repositories, and PRs are
+# independent. Non-PR (dispatch) runs share the empty-suffix group and cancel
+# only superseded dispatches; they are never treated as PR evidence.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   IMAGE_NAME: ghcr.io/contextualwisdomlab/litellm-patched-proxy
