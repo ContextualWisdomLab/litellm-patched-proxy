@@ -8,9 +8,17 @@ on:
       - "**.md"
   workflow_dispatch:
 
+# G13: same PR validation runs share one group; a newer run cancels only its
+# superseded same-group run. Other workflows, repositories, and PRs are
+# independent. Non-PR (dispatch) runs share the empty-suffix group and cancel
+# only superseded dispatches; they are never treated as PR evidence.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  IMAGE_NAME: ghcr.io/seongho-bae/pre-secured-llm-proxy
+  IMAGE_NAME: ghcr.io/contextualwisdomlab/litellm-patched-proxy
 
 permissions:
   contents: read
@@ -176,6 +184,7 @@ jobs:
         run: |
           sh scripts/test_container_runtime_contract.sh
           sh scripts/check_container_runtime_contract.sh Dockerfile
+          sh scripts/test_image_vulnerability_gate.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
@@ -186,7 +195,7 @@ jobs:
           context: .
           file: Dockerfile
           load: true
-          tags: local/pre-secured-llm-proxy:pr-${{ github.sha }}
+          tags: local/litellm-patched-proxy:pr-${{ github.sha }}
 
       - name: Set up Trivy
         uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514
@@ -200,7 +209,7 @@ jobs:
             --exit-code 0 \
             --format sarif \
             --output trivy-results.sarif \
-            local/pre-secured-llm-proxy:pr-${{ github.sha }}
+            local/litellm-patched-proxy:pr-${{ github.sha }}
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@b1722c1245f90604c2c348f9d1624af97ea8fc6e
@@ -217,7 +226,7 @@ jobs:
             --exit-code 0 \
             --format json \
             --output trivy-results.json \
-            local/pre-secured-llm-proxy:pr-${{ github.sha }}
+            local/litellm-patched-proxy:pr-${{ github.sha }}
 
       - name: Upload scan artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -228,19 +237,4 @@ jobs:
             trivy-results.json
 
       - name: Fail on CRITICAL/HIGH vulnerabilities
-        run: |
-          COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy-results.json)
-          {
-            echo "## Vulnerability gate"
-            echo "- CRITICAL/HIGH count: **$COUNT**"
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$COUNT" -gt 0 ]; then
-            jq -r '
-              [.Results[]?.Vulnerabilities[]?
-               | select(.Severity == "CRITICAL" or .Severity == "HIGH")]
-              | sort_by(.PkgName, .VulnerabilityID)
-              | .[]
-              | "- \(.PkgName) \(.InstalledVersion): \(.VulnerabilityID) (fixed: \(.FixedVersion // "unavailable"))"
-            ' trivy-results.json
-            exit 1
-          fi
+        run: sh scripts/gate_image_vulnerabilities.sh trivy-results.json

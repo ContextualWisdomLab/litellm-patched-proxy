@@ -15,14 +15,18 @@ ARG LITELLM_PROXY_UTILS_SHA256=9e07c5a4df29cfc7d2fe0a6e896df027323095cf9f074879f
 ARG LITELLM_SCHEMA_SHA256=4929d5d49e09aa6946e167c1bf7afce1408e924aca00b63ec4109e389e1f59df
 ARG PICOMATCH_SHA256=515b5ab666558ed9a117483a310892aede54a68dd78f2d8db6604513e578571c
 ARG SIGSTORE_SHA256=4d7ecc73cd9559457209adab0d9a64c50145e5cb1286de92abc75f0a140928a0
+ARG TAR_SHA256=b792c2d1c7fc770910522ca1ffc29eee02ee38de4fa3a01e7832eb705879c6c6
+ARG BRACE_EXPANSION_SHA256=5d06001fddd25cbee90c96db4dc5b7b57711b984c3141e28d10f143deb52dbaf
+ARG PACOTE_SHA256=d671739e5e4b8d1f1042fe3f337c0b471b01a9abd7bb9afb764305d919118612
+ARG IP_ADDRESS_SHA256=25a406ee4388fa3d47380ad57b816087fa82a681cc710cccbfe9162cffa8a57a
 
 # Install OS packages, keep pinned functional deps, and upgrade Python packages
-# that carry HIGH vulnerabilities shipped in the base image:
-#   orjson>=3.11.6            fixes CVE-2025-67221
-#   Pillow>=12.2.0            fixes CVE-2026-40192, CVE-2026-42311
-#   python-multipart>=0.0.30  fixes CVE-2026-24486, CVE-2026-42561, CVE-2026-53539
-#   urllib3>=2.7.0            fixes CVE-2026-44431, CVE-2026-44432
-#   litellm==1.84.10          fixes CVE-2026-40217, CVE-2026-49468 and bounds version drift
+# that carry HIGH/CRITICAL vulnerabilities shipped in the base image.
+# Already-installed Wolfi packages ignore a plain `apk add`. Named
+# `--upgrade` pulls openssl 3.6.3-r5 and busybox 1.38.0-r0. Do not
+# replace python-3.13 in place: 3.13.14-r3 needs GLIBC_2.44, which this
+# base digest does not ship (validate job 101963192386). Interpreter
+# HIGH stays until a reviewed digest. Assert major.minor stays 3.13.
 RUN apk_retry() { \
         attempt=1; \
         while ! apk "$@"; do \
@@ -32,20 +36,35 @@ RUN apk_retry() { \
         done; \
       } \
     && apk_retry add --no-cache curl jq python3 py3-pip ffmpeg \
-    && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "uv==0.11.29" "hypercorn==0.18.0" \
+    && apk_retry add --no-cache --upgrade \
+         openssl libcrypto3 libssl3 busybox \
+    && /usr/bin/python3 -c 'import sys; assert sys.version_info[:2] == (3, 13), sys.version' \
+    && pip_secure() { \
+         /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir "$@"; \
+         /usr/bin/python3 -m pip install --no-cache-dir --break-system-packages "$@"; \
+       } \
+    && pip_secure "uv==0.11.29" "hypercorn==0.18.0" \
     && /usr/bin/python3 -m pip --python /app/.venv/bin/python3 install --no-cache-dir \
          "litellm==1.84.10" \
          "fastapi==0.139.2" \
+         "semantic-router==0.1.15" \
+    && pip_secure \
          "starlette==1.3.1" \
          "PyJWT==2.13.0" \
-         "cryptography==48.0.1" \
+         "cryptography==50.0.1" \
          "ddtrace==4.8.2" \
-         "semantic-router==0.1.15" \
-         "tornado==6.5.6" \
+         "tornado==6.5.8" \
          "orjson>=3.11.6" \
          "Pillow>=12.2.0" \
-         "python-multipart>=0.0.30" \
-         "urllib3>=2.7.0"
+         "python-multipart==0.0.32" \
+         "urllib3==2.7.0" \
+         "RestrictedPython==8.5" \
+         "aiohttp==3.14.3" \
+         "mcp==1.30.0" \
+         "pyasn1==0.6.4" \
+         "pypdf==6.18.0" \
+         "setuptools==84.0.0" \
+    && /app/.venv/bin/python3 -c 'from importlib.metadata import version as v; assert v("starlette")=="1.3.1" and v("PyJWT")=="2.13.0" and v("cryptography")=="50.0.1" and v("tornado")=="6.5.8" and v("mcp")=="1.30.0" and v("urllib3")=="2.7.0"'
 
 # Overlay reviewed fixes from immutable canonical upstream commits.
 RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/usr/local/bin/verify-litellm-health-overlay,ro \
@@ -79,35 +98,53 @@ RUN --mount=type=bind,source=scripts/verify_litellm_health_overlay.py,target=/us
          "$pkg_root/proxy/utils.py" "$pkg_root/proxy/schema.prisma" \
     && rm -rf "$tmpdir"
 
-# Upgrade every picomatch and sigstore installation found in the base image.
-# Download each verified tarball once to avoid O(N) network requests in loops.
-RUN curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.npmjs.org/picomatch/-/picomatch-4.0.4.tgz" -o /tmp/picomatch.tgz \
-    && echo "$PICOMATCH_SHA256  /tmp/picomatch.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz; exit 1; } \
-    && curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 "https://registry.npmjs.org/sigstore/-/sigstore-4.1.1.tgz" -o /tmp/sigstore.tgz \
-    && echo "$SIGSTORE_SHA256  /tmp/sigstore.tgz" | sha256sum -c - || { rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz; exit 1; } \
-    && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/picomatch" -type d 2>/dev/null \
-    | while IFS= read -r d; do \
-        rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/picomatch.tgz --strip-components=1 -C "$d" || exit 1; \
-      done \
-    && find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/sigstore" -type d 2>/dev/null \
-    | while IFS= read -r d; do \
-        rm -rf "$d" && mkdir -p "$d" && tar -xz -f /tmp/sigstore.tgz --strip-components=1 -C "$d" || exit 1; \
-      done \
-    && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz
+# Replace every HIGH/CRITICAL npm tree found in the base image. Download each
+# verified tarball once to avoid O(N) network requests in loops.
+RUN fetch_npm() { \
+        name="$1"; ver="$2"; sha="$3"; dest="/tmp/${name}.tgz"; \
+        curl -fsSL --retry 4 --retry-all-errors --retry-delay 2 \
+          "https://registry.npmjs.org/${name}/-/${name}-${ver}.tgz" -o "$dest" \
+        && echo "$sha  $dest" | sha256sum -c - || { rm -f "$dest"; return 1; }; \
+      } \
+    && replace_npm() { \
+        name="$1"; tgz="/tmp/${name}.tgz"; \
+        find /usr /opt /app /root -maxdepth 15 -path "*/node_modules/${name}" -type d 2>/dev/null \
+        | while IFS= read -r d; do \
+            rm -rf "$d" && mkdir -p "$d" && tar -xz -f "$tgz" --strip-components=1 -C "$d" || exit 1; \
+          done; \
+      } \
+    && fetch_npm picomatch 4.0.4 "$PICOMATCH_SHA256" \
+    && fetch_npm sigstore 4.1.1 "$SIGSTORE_SHA256" \
+    && fetch_npm tar 7.5.22 "$TAR_SHA256" \
+    && fetch_npm brace-expansion 5.0.9 "$BRACE_EXPANSION_SHA256" \
+    && fetch_npm pacote 21.5.1 "$PACOTE_SHA256" \
+    && fetch_npm ip-address 10.7.0 "$IP_ADDRESS_SHA256" \
+    && replace_npm picomatch \
+    && replace_npm sigstore \
+    && replace_npm tar \
+    && replace_npm brace-expansion \
+    && replace_npm pacote \
+    && replace_npm ip-address \
+    && rm -f /tmp/picomatch.tgz /tmp/sigstore.tgz /tmp/tar.tgz \
+         /tmp/brace-expansion.tgz /tmp/pacote.tgz /tmp/ip-address.tgz
 
 # Carry repository and upstream attribution with the distributable image.
 COPY --chmod=0644 LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/litellm-patched-proxy/
 
 # Keep build-time mutation privileged, then run the proxy with a numeric
 # unprivileged identity. Preserve the inherited Prisma cache in writable
-# non-root locations used by common container deployments.
+# non-root locations used by common container deployments. Drop uv/pip
+# wheel archives first: Trivy treats their METADATA as installed packages.
 RUN addgroup -S -g 10001 litellm \
     && adduser -S -D -H -h /home/litellm -u 10001 -G litellm litellm \
+    && rm -rf /root/.cache/uv /root/.cache/pip \
     && mkdir -p /home/litellm/.cache /app/.cache \
     && cp -a /root/.cache/. /home/litellm/.cache/ \
     && cp -a /root/.cache/. /app/.cache/ \
     && chown -R 10001:10001 /home/litellm /app/.cache \
-    && rm -rf /root/.cache
+    && rm -rf /root/.cache \
+    && test ! -e /app/.cache/uv \
+    && test ! -e /home/litellm/.cache/uv
 
 ENV HOME=/home/litellm
 

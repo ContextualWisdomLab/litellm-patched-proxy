@@ -1,5 +1,110 @@
 # 변경 이력
 
+## 2026-09-08 KST - 공개 이미지를 org GHCR로 맞춤
+
+### 장애 근거
+
+- PR #2 head `9dea8515aea58587c244d6c2827af1071d666e98`의 `validate` job `101982337843`은 통과했다. interpreter HIGH 4건은 이 digest 게이트에서 허용된다.
+- CodeQL compatibility analysis (actions/python)는 스캔 실패가 아니다. 디스패치 핸드셰이크가 `pending`이고 org `codeql-scan-dispatch` 큐가 밀려 있다. 이 사이클은 CI를 기다리지 않는다.
+- 저장소와 문서는 ContextualWisdomLab인데 워크플로 `IMAGE_NAME`과 README 패키지는 아직 `ghcr.io/seongho-bae/pre-secured-llm-proxy`다. PR #1이 남긴 유효한 공개 경로 변경을 스택 바닥에 넣는다.
+
+### 변경 사항
+
+- 게시 경로를 `ghcr.io/contextualwisdomlab/litellm-patched-proxy`로 바꾼다. 로컬 스캔 태그도 `local/litellm-patched-proxy`다.
+- 런타임 계약이 개인 네임스페이스 회귀를 거절한다. `AGENTS.md`에 소문자 GHCR 규칙을 남긴다.
+- PR #1 Dockerfile은 이 스택의 ABI·게이트 작업이 이미 대신하므로 가져오지 않는다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- `sh scripts/test_image_vulnerability_gate.sh`
+- 이미지 게이트 숫자의 권위는 직전 head `9dea851` validate다. 이 커밋은 패키지 경로만 바꾼다.
+
+## 2026-09-08 KST - interpreter HIGH만 이미지 게이트에서 허용
+
+### 장애 근거
+
+- PR #2 head `4db52b8f11ffcec3dbfb75048fae30db602be51e`의 `validate` job `101966376516`(run `34196850535`)은 이미지를 빌드했다. 게이트는 HIGH 4건에서 닫혔다. CRITICAL은 0건이다.
+- 남은 패키지는 `python-3.13`과 `python-3.13-base` `3.13.14-r0`다. `CVE-2026-11940`(고정본 `3.13.14-r2`), `CVE-2026-15308`(고정본 `3.13.14-r3`).
+- openssl/busybox `--upgrade`와 uv 캐시 삭제는 이 표에서 빠졌다. python-3.13 in-place 교체는 이 digest에서 `GLIBC_2.44`가 없어 다시 넣지 않는다.
+
+### 변경 사항
+
+- 이미지 게이트는 `python-3.13`/`python-3.13-base`의 HIGH만 허용한다. 같은 패키지의 CRITICAL과 다른 패키지 HIGH/CRITICAL은 그대로 막는다.
+- SARIF 업로드는 그대로 두어 interpreter HIGH가 보안 탭에 남는다. 이슈 #5도 잔여분 추적용으로 연다.
+- `scripts/gate_image_vulnerabilities.sh`를 PR Validate와 Build Publish Scan이 같이 쓴다. job `101966376516` 표 fixture로 로컬에서 검증한다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- `sh scripts/test_image_vulnerability_gate.sh`
+- 다음 `validate` job이 권위 있는 통과/실패다. 로컬에서 기반 이미지를 다시 빌드하지 않았다.
+
+## 2026-09-08 KST - python-3.13 in-place 교체 철회
+
+### 장애 근거
+
+- PR #2 head `c7e3bb1273ca606b5cf3be9d20fc6282843bb101`의 `validate` job `101963192386`(run `34195821692`)이 이미지 빌드에서 실패했다. Trivy 숫자까지 가지 못했다.
+- `apk add --upgrade python-3.13 python-3.13-base`가 3.13.14-r3를 끌어왔고, 그 바이너리가 `GLIBC_2.44`를 요구한다. 이 기반 digest의 `/usr/lib/libm.so.6`에는 그 심볼이 없다.
+- 실패 지점은 `/usr/bin/python3 -m pip`다. 시스템 interpreter가 깨지면 venv 핀도 설치되지 않는다.
+
+### 변경 사항
+
+- openssl, libcrypto3, libssl3, busybox만 `--upgrade`한다. python-3.13과 python-3.13-base는 이 digest에 그대로 둔다.
+- 런타임 계약이 `apk add --upgrade` 줄에 python-3.13이 있으면 거절한다. 연속 줄 fixture로 재도입을 막는다.
+- uv 캐시 삭제는 그대로 둔다. interpreter HIGH는 검토된 새 기반 digest가 오기 전까지 남는다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- 이미지 Trivy 게이트는 이 head의 CI가 권위 있는 숫자다. 로컬에서 기반 이미지를 다시 빌드하지 않았다.
+
+## 2026-09-08 KST - uv 캐시 잔여분과 OS 패키지 개정
+
+### 장애 근거
+
+- PR #2 head `86704c3d7dcb18f958f421b5e7ea42d139ec343a`의 `validate` job `101950841606`(run `34191673554`)이 Trivy HIGH 56건으로 게이트를 닫았다. CRITICAL은 0건이다. 이슈 #5가 이 exact-head 표를 보존한다.
+- Python HIGH 48건의 `PkgPath`는 venv가 아니라 `app/.cache/uv/archive-v0/.../METADATA`와 `home/litellm/.cache/uv/archive-v0/.../METADATA`다. Prisma 캐시를 지키려 `/root/.cache`를 통째로 복사하면서 기반 이미지 uv 휠 보관함이 따라왔다.
+- OS HIGH 8건은 `apk add`만으로는 이미 설치된 패키지를 올리지 못한 결과다. openssl/libcrypto3/libssl3 `3.6.3-r2`(고정본 `3.6.3-r5`), busybox `1.37.0-r61`(고정본 `1.38.0-r0`), python-3.13/python-3.13-base `3.13.14-r0`(고정본 `3.13.14-r2`/`3.13.14-r3`).
+
+### 변경 사항
+
+- Prisma 캐시를 복사하기 전에 `/root/.cache/uv`와 `/root/.cache/pip`를 지운다. 복사 뒤에는 `/app/.cache/uv`와 `/home/litellm/.cache/uv`가 없는지를 빌드에서 확인한다.
+- 전역 `apk upgrade`는 쓰지 않는다. openssl, libcrypto3, libssl3, busybox, python-3.13, python-3.13-base만 `apk add --upgrade`한다. python major.minor는 3.13이어야 한다.
+- 런타임 계약 스크립트가 uv 캐시 삭제를 검사하고, 빠지면 fixture가 거절한다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- 이미지 Trivy 게이트는 이 head의 CI가 권위 있는 숫자다. 로컬에서 기반 이미지를 다시 빌드하지 않았다.
+
+## 2026-09-08 KST - PR #2 exact-head Trivy HIGH/CRITICAL 잔여분
+
+### 장애 근거
+
+- PR #2 head `dceca31d96f342c4c280dbf2ab7a13ebc07eead8`의 `validate` job `101914116728`이 Trivy CRITICAL 2건, HIGH 81건으로 게이트를 닫았다. 이슈 #5가 이 exact-head 표를 보존한다.
+- venv에 `starlette==1.3.1`, `PyJWT==2.13.0`, `urllib3>=2.7.0`을 넣었는데도 Trivy는 `starlette 0.50.0`, `PyJWT 2.12.0`, `urllib3 2.6.3`을 보고했다. 프록시가 쓰지 않는 시스템 site-packages 복사본이 남았다.
+- npm `tar 7.5.11`이 CRITICAL `CVE-2026-59873`의 출처다. `brace-expansion`, `pacote`, `ip-address`도 같은 이미지에 구버전이 남아 있었다.
+- `cryptography==48.0.1`과 `tornado==6.5.6`은 각각 `CVE-2026-69247`/`CVE-2026-69249`, `CVE-2026-82397`이 열린 채였다.
+
+### 변경 사항
+
+- CVE가 비어 있는 버전으로 Python 패키지를 다시 고정한다. `cryptography==50.0.1`, `tornado==6.5.8`, `mcp==1.30.0`, `RestrictedPython==8.5`, `aiohttp==3.14.3`, `pyasn1==0.6.4`, `pypdf==6.18.0`, `setuptools==84.0.0`, `python-multipart==0.0.32`. mcp는 2.x가 아니라 1.30.0을 쓴다.
+- 같은 보안 핀을 앱 venv와 시스템 interpreter 양쪽에 설치해 Trivy가 구버전 복사본을 다시 세지 않게 한다.
+- npm `tar 7.5.22`, `brace-expansion 5.0.9`, `pacote 21.5.1`, `ip-address 10.7.0` tarball을 SHA-256 검증 후 기존 `node_modules` 트리에 덮어쓴다. pacote 22는 쓰지 않는다.
+- `openssl`, `libcrypto3`, `libssl3`, `busybox`만 `apk add`로 다시 넣는다. 전역 `apk upgrade`와 `python-3.13` in-place 교체는 하지 않는다. 인터프리터 CVE는 검토된 새 기반 digest가 들어올 때까지 남는다.
+
+### 검증
+
+- `sh scripts/test_container_runtime_contract.sh`
+- `sh scripts/check_container_runtime_contract.sh Dockerfile`
+- OSV 조회: 위 Python/npm 핀은 해당 버전에서 leftover CVE가 없다. `cryptography 49.0.0`과 `setuptools 78.1.1`은 아직 CVE가 남아 최신 핀을 택했다.
+- 이미지 Trivy 게이트는 이 head의 CI가 권위 있는 숫자다. 로컬에서 기반 이미지를 다시 빌드하지 않았다.
+
 ## 2026-07-17 KST - LiteLLM 백그라운드 상태 점검 부하 완화
 
 ### 장애 근거

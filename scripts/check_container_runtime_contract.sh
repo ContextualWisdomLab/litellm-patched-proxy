@@ -8,6 +8,23 @@ if grep -Eq '(^|[^[:alnum:]_])apk(_retry)?[[:space:]]+upgrade([^[:alnum:]_]|$)' 
   exit 1
 fi
 
+joined="$(awk '{
+  if (sub(/\\[[:space:]]*$/, " ")) {
+    printf "%s", $0
+  } else {
+    print
+  }
+}' "$dockerfile")"
+if printf '%s\n' "$joined" | grep -Eq 'apk(_retry)?[[:space:]]+add.*--upgrade.*python-3\.13'; then
+  echo "Dockerfile must not replace python-3.13 in place; this digest lacks GLIBC_2.44." >&2
+  exit 1
+fi
+
+if ! grep -Fq '/.cache/uv' "$dockerfile"; then
+  echo "Dockerfile must drop inherited uv wheel archives before copying caches." >&2
+  exit 1
+fi
+
 if grep -Fq 'raw.githubusercontent.com/Seongho-Bae/litellm/' "$dockerfile"; then
   echo "Dockerfile overlays must use the canonical public BerriAI/litellm supplier." >&2
   exit 1
@@ -28,3 +45,22 @@ case "$uid" in
     exit 1
     ;;
 esac
+
+script_dir="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
+workflows="$repo_root/.github/workflows"
+if [ -d "$workflows" ]; then
+  if grep -R -F -q 'ghcr.io/seongho-bae/pre-secured-llm-proxy' \
+    "$workflows" "$repo_root/README.md" "$repo_root/docs/index.md"; then
+    echo "published image must not use the personal pre-secured-llm-proxy GHCR path." >&2
+    exit 1
+  fi
+  if ! grep -R -F -q 'IMAGE_NAME: ghcr.io/contextualwisdomlab/litellm-patched-proxy' "$workflows"; then
+    echo "workflows must publish ghcr.io/contextualwisdomlab/litellm-patched-proxy." >&2
+    exit 1
+  fi
+  if grep -R -F -q 'local/pre-secured-llm-proxy:' "$workflows"; then
+    echo "local scan tags must use litellm-patched-proxy." >&2
+    exit 1
+  fi
+fi

@@ -11,6 +11,14 @@ on:
     - cron: "17 4 * * 2"
   workflow_dispatch:
 
+# G13: PR runs are isolated per PR number; a newer run cancels only its
+# superseded same-group run. Push/schedule/dispatch runs share the
+# empty-suffix group. Dispatch attestation stays fail-closed: it still fails
+# when no successful pull_request run exists for the head SHA.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
