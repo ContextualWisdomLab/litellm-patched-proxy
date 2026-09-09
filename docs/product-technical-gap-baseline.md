@@ -6,19 +6,19 @@
 
 - 저장소: ContextualWisdomLab/litellm-patched-proxy
 - 작업 브랜치: `docs/public-surface-metadata` (PR #2)
-- 현 권위 head: `42af879d3d39ab5b211592e9f04d720b0b397bca`
-- 현 head 근거: PR Validate run `34301772484`(`validate`, `sql-maintenance` `success`); CodeQL Advanced·Semgrep·Security Scan·Scorecard `success`; CodeQL compatibility run `34301772438`은 디스패치 핸드셰이크 실패(스캔 결함 아님); Noema·Strix는 `pending`
-- 직전 권위 head: `61b308bbb69fb80e22031ac8fa30c794fda8f269` (PR Validate run `34299670206`, `success`)
+- 현 권위 head: `4b0e3dc8905859394ed1dfee4e34744f9e562b83`
+- 현 head 근거: PR Validate run `34304192111`(`validate`, `sql-maintenance` `success`); CodeQL Advanced run `34304192039` `success`; Semgrep run `34304192081` `success`; Security Scan run `34304192103` `success`; Scorecard run `34304192087` `success`; Noema run `34304191076` `success`; Strix run `34304191187` `success`; CodeQL PR run `34304192122`는 compatibility(actions/python) FAIL(스캔 결함 아님, 디스패치 핸드셰이크 계열)
+- 직전 권위 head: `42af879d3d39ab5b211592e9f04d720b0b397bca` (PR Validate run `34301772484`, `success`)
 - 이 문서가 적힌 시각: 2026-09-09
 - 기반 이미지: `ghcr.io/berriai/litellm:v1.84.10@sha256:3f59ec3f54e095c18abdc4142ea0afd2f3961d91133c6677ae378a36bf212029`
 - 게시 이미지: `ghcr.io/contextualwisdomlab/litellm-patched-proxy`
-- 작업 트리(미커밋): G13 concurrency 4종(`pr-validate`, `codeql`, `scorecard`는 PR별 group·`cancel-in-progress: true`; `build-publish-scan`은 publish 직렬화·`cancel-in-progress: false`). `actionlint`, `git diff --check`, 로컬 3종 게이트 통과. CI는 후속 run이 권위.
+- 작업 트리(미커밋): 없음. G13 concurrency 4종은 현 head `4b0e3dc`에 포함돼 CI로 검증됐다. `actionlint`, `git diff --check`, 로컬 3종 게이트 통과. 다음 변경의 권위는 후속 run이다.
 
 ## 열린 PR
 
 | PR | 제목 | 베이스 | mergeable | 검사 | 메모 |
 | --- | --- | --- | --- | --- | --- |
-| #2 | docs: align public LiteLLM proxy surface | develop | MERGEABLE | PASS: PR Validate run 34301772484 (`validate`, `sql-maintenance`, head `42af879`); CodeQL Advanced, Semgrep, Security Scan, Scorecard `success`. FAIL: CodeQL compatibility run 34301772438 (`actions`, `python`, handshake verdict enforced). PENDING: Noema, Strix. BLOCKED: REVIEW_REQUIRED, Draft | 스택 바닥. 현 head `42af879`가 org GHCR 경로와 갭 기준선 승계를 포함. 로컬 4종 게이트 통과. 작업 트리 G13 concurrency는 후속 run이 권위. 외부 필수 검사를 우회하지 않음. |
+| #2 | docs: align public LiteLLM proxy surface | develop | MERGEABLE | PASS: PR Validate run 34304192111 (`validate`, `sql-maintenance`, head `4b0e3dc`); CodeQL Advanced run 34304192039, Semgrep run 34304192081, Security Scan run 34304192103, Scorecard run 34304192087, Noema run 34304191076, Strix run 34304191187 `success`. FAIL: CodeQL PR run 34304192122 (`actions`, `python`, handshake 계열). PENDING: 없음. BLOCKED: REVIEW_REQUIRED, Draft | 스택 바닥. 현 head `4b0e3dc`가 G13 concurrency와 org GHCR 경로·갭 기준선 승계를 포함. 로컬 4종 게이트 통과. 작업 트리 없음. 외부 필수 검사를 우회하지 않음. |
 | #4 | fix(ci): skip docs-only changes for Build Publish Scan, CodeQL, PR Validate | `docs/public-surface-metadata` | MERGEABLE(재계산 중 UNKNOWN 관측) | FAIL: CodeQL compatibility, validate, dependency-review (head `7a23ad`, 구 head 기준) | Draft. #2 위 스택. 유효 delta는 3종 workflow `paths-ignore`(docs-only skip). 본 사이클 G13 `concurrency`와 hunk가 달라 충돌 없이 병합 가능. base가 전진하므로 병합(merge, non-force)으로 후손 재검증 필요. force-push·rebase 금지. |
 | #3 | chore(actions): remove redundant Copilot auto-merge workflow | develop | MERGEABLE | FAIL: noema-review, dependency-review, validate, trivy-fs, coverage-evidence | 워크플로 삭제만. 이미지 게이트는 develop 잔여 취약점에 묶인다. |
 | #1 | ci: publish the patched proxy under ContextualWisdomLab | develop | MERGEABLE | PASS: validate. FAIL: noema-review, dependency-review, opencode-review, trivy-fs | GHCR 경로 delta는 현 #2 head `28f3dc6`이 승계. Dockerfile은 #2 ABI가 대체. 잔여 고유 delta 확인 전 close 금지. |
@@ -36,7 +36,7 @@
 
 ## 고객 체감 갭
 
-게이트가 열린 이미지만 배포 후보다. 현 head `61b308b`의 PR Validate run `34299670206`은 `success`다. 남은 판매 품질 구멍은 두 가지다.
+게이트가 열린 이미지만 배포 후보다. 현 head `4b0e3dc`의 PR Validate run `34304192111`은 `success`다. 남은 판매 품질 구멍은 두 가지다.
 
 - 공개 패키지는 현 head에서 `ghcr.io/contextualwisdomlab/litellm-patched-proxy`로 맞췄다. 로컬 계약(`test_container_runtime_contract`, `check_container_runtime_contract`, `test_image_vulnerability_gate`)과 `actionlint`, `git diff --check`은 2026-09-09에 통과했다.
 - python-3.13 / python-3.13-base `3.13.14-r0` HIGH 4건(`CVE-2026-11940`, `CVE-2026-15308`)은 이 digest가 올리지 못한다. 고정본 r2/r3는 `GLIBC_2.44`가 필요하다. 게이트는 그 HIGH만 허용하고 CRITICAL과 다른 패키지는 막는다. SARIF와 이슈 #5는 잔여분을 남긴다.
@@ -62,8 +62,8 @@
 | G9 | uv archive METADATA를 설치된 패키지로 집계 | job 101966376516 표에 uv archive 없음 | Prisma 복사 전에 `/root/.cache/uv`·`pip` 삭제. 복사 후 경로 부재 확인 | `c7e3bb1`/`4db52b8`, 닫힘 |
 | G10 | CodeQL compatibility analysis (actions/python) FAIL | PR #2 run 34299670218, `8a6a2e9` run 34298493374, `28f3dc6` run 34207909411, 현 head `42af879` run 34301772438. 단계 `Release runner or enforce current-head CodeQL verdict` 실패 | org `codeql-scan-dispatch`가 터미널 판정 후 같은 head를 다시 돌린다. 이 사이클은 대기하지 않음 | 핸드셰이크 대기 |
 | G11 | 공개 GHCR가 개인 네임스페이스 | README·워크플로 `ghcr.io/seongho-bae/pre-secured-llm-proxy`; PR #1 잔여 delta | `ghcr.io/contextualwisdomlab/litellm-patched-proxy`와 계약 회귀 검사 | 닫힘: `28f3dc6` run 34207909440, `8a6a2e9` run 34298493363, `61b308b` run 34299670206, 현 head `42af879` run 34301772484 모두 `success` |
-| G12 | strix `Run Strix (quick)` FAIL | `28f3dc6` run 34207907041 RCA: `openai/orchestrator/free` HTTP 500 `internal_error`, 6005초 후 fail-closed. 저장소 코드 결함 아님. 유료 우회 금지 | 같은 head 재실행이 권위. 현 head `42af879`의 Strix run `34301768734`가 `pending`이므로 그 결과를 기다리지 않고 독립 작업을 계속. Noema 현 head run `34301768746`도 `pending` | RCA 완료, 재실행 추적 중 |
-| G13 | PR Actions에 `concurrency.group` 없음 | `.github/workflows`에 `concurrency` 0건, 2026-09-09 `grep` | 검증 3종(`PR Validate`, `CodeQL Advanced`, `OSSF Scorecard`)에 `${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number }}`·`cancel-in-progress: true`; 발행(`Build Publish Scan`)은 publish group·`cancel-in-progress: false`로 직렬화·무취소. `workflow_call` 없음. 간접 호출 fail-closed는 dispatch attestation(성공 PR run 부재 시 실패)과 Trivy branch/PR 분기로 이미 강제되며, 재사용 workflow 도입 때 강제 가드를 추가 | 조치 중(작업 트리, `actionlint`·`git diff --check`·로컬 3종 통과, CI pending) |
+| G12 | strix `Run Strix (quick)` FAIL | `28f3dc6` run 34207907041 RCA: `openai/orchestrator/free` HTTP 500 `internal_error`, 6005초 후 fail-closed. 저장소 코드 결함 아님. 유료 우회 금지 | 현 head `4b0e3dc`의 Strix run `34304191187`이 `success`(11m32s). Noema run `34304191076`도 `success`. 같은 head 재실행이 권위이므로 해소. 재발하면 같은 head 재실행이 권위 | 해소: `4b0e3dc`에서 Strix·Noema 모두 `success` |
+| G13 | PR Actions에 `concurrency.group` 없음 | `.github/workflows`에 `concurrency` 0건, 2026-09-09 `grep` | 검증 3종(`PR Validate`, `CodeQL Advanced`, `OSSF Scorecard`)에 `${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number }}`·`cancel-in-progress: true`; 발행(`Build Publish Scan`)은 publish group·`cancel-in-progress: false`로 직렬화·무취소. `workflow_call` 없음. 간접 호출 fail-closed는 dispatch attestation(성공 PR run 부재 시 실패)과 Trivy branch/PR 분기로 이미 강제되며, 재사용 workflow 도입 때 강제 가드를 추가 | 닫힘: `4b0e3dc`에 포함. PR Validate run `34304192111`, CodeQL Advanced run `34304192039`, Scorecard run `34304192087` 모두 `success`. 로컬 `actionlint`·`git diff --check`·3종 계약 통과 |
 
 ## 이번 사이클이 하지 않은 일
 
@@ -83,4 +83,4 @@
 
 ## 다음 권위 측정
 
-현 head `42af879`의 PR Validate run `34301772484`(`success`)가 이미지·계약 권위다. 로컬 계약 3종과 `actionlint`, `git diff --check`은 2026-09-09에 통과했다. Noema·Strix는 현 head의 진행 중 run이 끝나면 그 결과가 권위다. 작업 트리 G13 concurrency는 커밋 뒤 새 PR Validate run이 권위이며, 그 run에서 `concurrency` 동작(같은 PR 구형 실행 취소·타 PR/발행 독립)을 확인한다. CodeQL compatibility는 org 디스패치 터미널 판정 뒤의 같은 head 재실행이 권위다. interpreter 이외 HIGH/CRITICAL이 다시 뜨면 그 PkgPath가 다음 작업이다.
+현 head `4b0e3dc`의 PR Validate run `34304192111`(`success`)가 이미지·계약 권위다. CodeQL Advanced run `34304192039`, Semgrep run `34304192081`, Security Scan run `34304192103`, Scorecard run `34304192087`, Noema run `34304191076`, Strix run `34304191187`도 같은 head `success`다. 로컬 계약 3종과 `actionlint`, `git diff --check`은 2026-09-09에 통과했다. CodeQL compatibility는 org 디스패치 터미널 판정 뒤의 같은 head 재실행이 권위다. interpreter 이외 HIGH/CRITICAL이 다시 뜨면 그 PkgPath가 다음 작업이다. PR #4는 base `4b0e3dc`를 merge(non-force)로 후손 재검증한 뒤 새 run이 권위다.
