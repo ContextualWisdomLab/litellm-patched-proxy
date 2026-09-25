@@ -8,7 +8,7 @@
 
 ### 검증
 
-- `actionlint`로 GitHub Actions 워크플로 문법을 검사합니다.
+- `actionlint` v1.7.12로 GitHub Actions 워크플로 문법 검사를 통과했습니다.
 
 ## 2026-07-17 KST - LiteLLM 백그라운드 상태 점검 부하 완화
 
