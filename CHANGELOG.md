@@ -5,6 +5,7 @@
 ### 변경 사항
 
 - 조직 중앙 필수 `CodeQL PR` 및 `Security Scan`이 PR 보안 검사를 담당하므로 로컬 `codeql.yml`과 `scorecard.yml`의 `pull_request` 트리거를 제거했습니다. 기본 브랜치 `push` 및 예약 실행 백스톱은 유지합니다.
+- `workflow_dispatch`에서도 실제 OSSF Scorecard 분석과 SARIF 정규화를 실행하도록 수동 실행 전용 PR 분석 attestation 단계를 제거했습니다.
 
 ### 검증
 
